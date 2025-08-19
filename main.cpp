@@ -19,10 +19,10 @@ using namespace Microsoft::WRL;
 #define ID_TRAY_EXIT  1002
 
 // The main window class name.
-static TCHAR szWindowClass[] = _T("DesktopApp");
+static TCHAR szWindowClass[] = _T("TaskbarManagerClass");
 
 // The string that appears in the application's title bar.
-static TCHAR szTitle[] = _T("WebView sample");
+static TCHAR szTitle[] = _T("TaskbarManager");
 
 HINSTANCE hInst;
 
@@ -332,7 +332,8 @@ int CALLBACK WinMain(
     std::cout << "logicalWidth: " << logicalWidth << std::endl;
     std::cout << "logicalHeight: " << logicalHeight << std::endl;
 
-    HWND hWnd = CreateWindow(
+    HWND hWnd = CreateWindowEx(
+        WS_EX_TOOLWINDOW,
         szWindowClass,
         szTitle,
         WS_POPUP | WS_VISIBLE,
