@@ -364,10 +364,10 @@ int CALLBACK WinMain(
     const int logicalWidth = static_cast<int>(physicalWidth / scale);
     const int logicalHeight = static_cast<int>(physicalHeight / scale);
 
-    const int windowWidth = 300 * scale;
+    const int windowWidth = 480 * scale;
     const int windowHeight = (logicalHeight - 80) * scale;
-    const int x = (logicalWidth - 300 - 20) * scale;
-    const int y = 20 * scale;
+    const int x = (logicalWidth - 480 - 16) * scale;
+    const int y = 16 * scale;
 
     std::cout << "physicalWidth: " << physicalWidth << std::endl;
     std::cout << "physicalHeight: " << physicalHeight << std::endl;
