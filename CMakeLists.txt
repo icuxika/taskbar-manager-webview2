@@ -19,6 +19,7 @@ target_link_directories(webview2_win32 PUBLIC ${CMAKE_BINARY_DIR}/packages/Micro
 target_link_libraries(webview2_win32 PUBLIC WebView2LoaderStatic)
 
 target_include_directories(${PROJECT_NAME} PRIVATE third-party\\nlohmann)
+target_link_libraries(${PROJECT_NAME} PRIVATE Dwmapi)
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy

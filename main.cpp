@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <string>
 #include <vector>
+#include <dwmapi.h>
 #include <json.hpp>
 #include <tchar.h>
 #include <wrl.h>
@@ -314,12 +315,29 @@ int CALLBACK WinMain(
 
     // CreateConsole();
 
+    const int physicalWidth = GetSystemMetrics(SM_CXSCREEN);;
+    const int physicalHeight = GetSystemMetrics(SM_CYSCREEN);
+    const UINT dpi = GetDpiForSystem();
+    const float scale = dpi / 96.0f;
+    const int logicalWidth = static_cast<int>(physicalWidth / scale);
+    const int logicalHeight = static_cast<int>(physicalHeight / scale);
+
+    const int windowWidth = 300 * scale;
+    const int windowHeight = (logicalHeight - 80) * scale;
+    const int x = (logicalWidth - 300 - 20) * scale;
+    const int y = 20 * scale;
+
+    std::cout << "physicalWidth: " << physicalWidth << std::endl;
+    std::cout << "physicalHeight: " << physicalHeight << std::endl;
+    std::cout << "logicalWidth: " << logicalWidth << std::endl;
+    std::cout << "logicalHeight: " << logicalHeight << std::endl;
+
     HWND hWnd = CreateWindow(
         szWindowClass,
         szTitle,
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        1200, 900,
+        WS_POPUP | WS_VISIBLE,
+        x, y,
+        windowWidth, windowHeight,
         nullptr,
         nullptr,
         hInstance,
@@ -333,6 +351,9 @@ int CALLBACK WinMain(
                    0);
         return 1;
     }
+
+    constexpr DWM_WINDOW_CORNER_PREFERENCE preference = DWMWCP_ROUND;
+    DwmSetWindowAttribute(hWnd, DWMWA_WINDOW_CORNER_PREFERENCE, &preference, sizeof(preference));
 
     ShowWindow(hWnd,
                nCmdShow);
@@ -388,6 +409,10 @@ int CALLBACK WinMain(
                                                                              args->TryGetWebMessageAsString(&message);
                                                                              // processMessage(&message);
                                                                              std::wstring msg = message.get();
+                                                                             if (msg == L"quit") {
+                                                                                 Shell_NotifyIconW(NIM_DELETE, &nid);
+                                                                                 PostQuitMessage(0);
+                                                                             }
                                                                              if (msg == L"getWindows") {
                                                                                  get_windows();
                                                                              }
