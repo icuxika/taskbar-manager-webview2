@@ -1,5 +1,10 @@
+#include <codecvt>
+#include <iostream>
+#include <sstream>
 #include <windows.h>
 #include <string>
+#include <vector>
+#include <json.hpp>
 #include <tchar.h>
 #include <wrl.h>
 #include <wil/com.h>
@@ -35,9 +40,243 @@ void AddTrayIcon(HWND hWnd) {
     nid.uID = 1;
     nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.uCallbackMessage = WM_TRAY_ICON;
-    nid.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-    lstrcpyW(nid.szTip, L"WebView2 示例应用");
+    // nid.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+    nid.hIcon = static_cast<HICON>(LoadImage(nullptr, "icon.ico", IMAGE_ICON, 16, 16, LR_LOADFROMFILE));
+    lstrcpyW(nid.szTip, L"Windows 任务栏窗口管理");
     Shell_NotifyIconW(NIM_ADD, &nid);
+}
+
+void CreateConsole() {
+    // 分配控制台
+    AllocConsole();
+
+    // 重定向标准输出到控制台
+    FILE *pCout;
+    freopen_s(&pCout, "CONOUT$", "w", stdout);
+
+    // 重定向标准输入到控制台
+    FILE *pCin;
+    freopen_s(&pCin, "CONIN$", "r", stdin);
+
+    // 重定向标准错误到控制台
+    FILE *pCerr;
+    freopen_s(&pCerr, "CONOUT$", "w", stderr);
+
+    // 设置控制台窗口标题
+    SetConsoleTitleW(L"WebView2 Debug Console");
+
+    std::wcout << L"=== WebView2 Debug Console Started ===" << std::endl;
+}
+
+std::wstring GetExeDirectory() {
+    wchar_t buffer[MAX_PATH] = {0};
+    GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+    std::wstring path(buffer);
+    size_t pos = path.find_last_of(L"\\/");
+    if (pos != std::wstring::npos) {
+        path = path.substr(0, pos); // 取 exe 所在目录
+    }
+    return path;
+}
+
+struct WindowInfo {
+    HWND hwnd;
+    std::wstring title;
+    std::wstring className;
+    bool isVisible;
+    bool isMinimized;
+    bool isMaximized;
+    DWORD processId;
+    std::wstring processName;
+};
+
+std::wstring GetProcessName(DWORD processId) {
+    const HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+                                        FALSE, processId);
+    if (hProcess == nullptr) {
+        return L"Unknown";
+    }
+
+    wchar_t processName[MAX_PATH];
+    DWORD size = MAX_PATH;
+
+    if (QueryFullProcessImageNameW(hProcess, 0, processName, &size)) {
+        std::wstring fullPath(processName);
+        size_t pos = fullPath.find_last_of(L'\\');
+        if (pos != std::wstring::npos) {
+            CloseHandle(hProcess);
+            return fullPath.substr(pos + 1);
+        }
+    }
+
+    CloseHandle(hProcess);
+    return L"Unknown";
+}
+
+// 检查窗口是否应该在任务栏显示
+bool ShouldShowInTaskbar(HWND hwnd) {
+    // 检查窗口是否可见
+    if (!IsWindowVisible(hwnd)) {
+        return false;
+    }
+
+    // 获取窗口样式
+    LONG style = GetWindowLong(hwnd, GWL_STYLE);
+    LONG exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+
+    // 排除工具窗口（除非有 WS_EX_APPWINDOW 样式）
+    if ((exStyle & WS_EX_TOOLWINDOW) && !(exStyle & WS_EX_APPWINDOW)) {
+        return false;
+    }
+
+    // 检查是否有父窗口（排除子窗口）
+    HWND parent = GetParent(hwnd);
+    if (parent != nullptr && parent != GetDesktopWindow()) {
+        return false;
+    }
+
+    // 检查窗口是否有标题
+    int titleLength = GetWindowTextLengthW(hwnd);
+
+    // 如果有 WS_EX_APPWINDOW 样式，即使没有标题也显示
+    if (exStyle & WS_EX_APPWINDOW) {
+        return true;
+    }
+
+    // 必须有标题才显示
+    if (titleLength == 0) {
+        return false;
+    }
+
+    // 排除一些特殊的窗口类
+    wchar_t className[256];
+    GetClassNameW(hwnd, className, sizeof(className) / sizeof(wchar_t));
+    std::wstring classNameStr(className);
+
+    // 排除一些系统窗口类
+    if (classNameStr == L"Windows.UI.Core.CoreWindow" ||
+        classNameStr == L"ApplicationFrameWindow") {
+        return false;
+    }
+
+    return true;
+}
+
+// 窗口枚举回调函数
+BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam) {
+    std::vector<WindowInfo> *windows =
+            reinterpret_cast<std::vector<WindowInfo> *>(lParam);
+
+    // 检查是否应该在任务栏显示
+    if (!ShouldShowInTaskbar(hwnd)) {
+        return TRUE; // 继续枚举
+    }
+
+    WindowInfo info;
+    info.hwnd = hwnd;
+
+    // 获取窗口标题
+    int titleLength = GetWindowTextLengthW(hwnd);
+    if (titleLength > 0) {
+        std::vector<wchar_t> titleBuffer(titleLength + 1);
+        GetWindowTextW(hwnd, titleBuffer.data(), titleLength + 1);
+        info.title = std::wstring(titleBuffer.data());
+    } else {
+        info.title = L"(无标题)";
+    }
+
+    // 获取窗口类名
+    wchar_t className[256];
+    if (GetClassNameW(hwnd, className, sizeof(className) / sizeof(wchar_t))) {
+        info.className = std::wstring(className);
+    }
+
+    // 获取窗口状态
+    info.isVisible = IsWindowVisible(hwnd);
+    info.isMinimized = IsIconic(hwnd);
+    info.isMaximized = IsZoomed(hwnd);
+
+    // 获取进程ID和进程名
+    GetWindowThreadProcessId(hwnd, &info.processId);
+    info.processName = GetProcessName(info.processId);
+
+    windows->push_back(info);
+
+    return TRUE; // 继续枚举
+}
+
+// 将宽字符串转换为多字节字符串（用于控制台输出）
+std::string WStringToString(const std::wstring &wstr) {
+    if (wstr.empty())
+        return std::string();
+
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(),
+                                          nullptr, 0, nullptr, nullptr);
+    std::string strTo(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), &strTo[0],
+                        size_needed, nullptr, nullptr);
+    return strTo;
+}
+
+// string(UTF-8) -> wstring
+std::wstring ToWide(const std::string &str) {
+    std::wstring_convert<std::codecvt_utf8<wchar_t> > conv;
+    return conv.from_bytes(str);
+}
+
+std::string HwndToHexString(HWND hwnd) {
+    std::ostringstream oss;
+    oss << "0x" << std::hex << std::uppercase
+            << reinterpret_cast<uintptr_t>(hwnd);
+    return oss.str();
+}
+
+HWND HexStringToHwnd(const std::string &hexStr) {
+    uintptr_t handle;
+    std::istringstream iss(hexStr);
+    iss >> std::hex >> handle;
+    return reinterpret_cast<HWND>(handle);
+}
+
+void get_windows() {
+    std::vector<WindowInfo> windows;
+    if (!EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&windows))) {
+        std::cerr << "枚举窗口失败！\n";
+    }
+
+    using json = nlohmann::json;
+    json result;
+    result["windows"] = json::array();
+    for (const auto &info: windows) {
+        json windowJson;
+
+        // 将宽字符串转换为UTF-8字符串
+        const int size_needed = WideCharToMultiByte(CP_UTF8, 0, info.title.c_str(), -1,
+                                                    nullptr, 0, nullptr, nullptr);
+        if (size_needed > 0) {
+            std::string titleUtf8(size_needed - 1, 0);
+            WideCharToMultiByte(CP_UTF8, 0, info.title.c_str(), -1, &titleUtf8[0],
+                                size_needed, nullptr, nullptr);
+            windowJson["title"] = titleUtf8;
+        } else {
+            windowJson["title"] = "(无标题)";
+        }
+        windowJson["handle"] = HwndToHexString(info.hwnd);
+        result["windows"].push_back(windowJson);
+    }
+    webview->PostWebMessageAsString(ToWide(result.dump(2)).c_str());
+}
+
+void activate_window(std::wstring wHandle) {
+    std::string handle = WStringToString(wHandle);
+    HWND hwnd = HexStringToHwnd(handle);
+    if (IsIconic(hwnd)) {
+        ShowWindow(hwnd, SW_RESTORE);
+    }
+    keybd_event(VK_MENU, 0, 0, 0);
+    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
+
+    SetForegroundWindow(hwnd);
 }
 
 int CALLBACK WinMain(
@@ -72,6 +311,8 @@ int CALLBACK WinMain(
     }
 
     hInst = hInstance;
+
+    // CreateConsole();
 
     HWND hWnd = CreateWindow(
         szWindowClass,
@@ -146,31 +387,38 @@ int CALLBACK WinMain(
                                                                              wil::unique_cotaskmem_string message;
                                                                              args->TryGetWebMessageAsString(&message);
                                                                              // processMessage(&message);
-                                                                             webview->PostWebMessageAsString(
-                                                                                 message.get());
+                                                                             std::wstring msg = message.get();
+                                                                             if (msg == L"getWindows") {
+                                                                                 get_windows();
+                                                                             }
+                                                                             if (msg.rfind(L"activateWindow|", 0) ==
+                                                                                 0) {
+                                                                                 std::wcout << L"message1: " << msg <<
+                                                                                         std::endl;
+                                                                                 size_t pos = msg.find(L'|');
+                                                                                 if (pos != std::wstring::npos && pos +
+                                                                                     1 < msg.size()) {
+                                                                                     std::wstring content = msg.substr(
+                                                                                         pos + 1);
+                                                                                     std::wcout << L"message2: " <<
+                                                                                             content <<
+                                                                                             std::endl;
+                                                                                     activate_window(content);
+                                                                                 }
+                                                                             }
                                                                              return S_OK;
                                                                          }).Get(), &token);
 
                                                                  webview->AddScriptToExecuteOnDocumentCreated(
-                                                                     L"window.chrome.webview.addEventListener(\'message\', event => alert(event.data));"
                                                                      L"window.chrome.webview.postMessage(window.document.URL);",
                                                                      nullptr);
 
-                                                                 webview->NavigateToString(LR"(
-<!DOCTYPE html>
-    <html>
-    <head>
-        <title>Hello WebView2</title>
-        <style>
-            body { font-family: sans-serif; background-color: #f0f0f0; padding: 20px; }
-        </style>
-    </head>
-    <body>
-        <h1>你好，WebView2！</h1>
-        <p>这是一段从 C++ 传入的 HTML 字符串。</p>
-    </body>
-    </html>
-)");
+                                                                 std::wstring exeDir = GetExeDirectory();
+                                                                 std::wstring htmlPath = exeDir + L"/index.html";
+                                                                 std::wstring url = L"file:///" + htmlPath;
+                                                                 webview->Navigate(url.c_str());
+                                                                 // webview->Navigate(
+                                                                 // L"file:///C:/Users/icuxika/CLionProjects/webview2-win32/index.html");
 
                                                                  return S_OK;
                                                              }).Get());
@@ -194,6 +442,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
                 GetClientRect(hWnd, &bounds);
                 webviewController->put_Bounds(bounds);
             };
+            break;
+        // case WM_KILLFOCUS: {
+        //     HWND hNewFocusWnd = reinterpret_cast<HWND>(wParam);
+        //     WCHAR className[256] = {0};
+        //     GetClassNameW(hNewFocusWnd, className, 255);
+        //     bool x = hNewFocusWnd == nullptr;
+        //     bool y = GetParent(hNewFocusWnd) != hWnd;
+        //     std::cout << "hNewFocusWnd == nullptr: " << x << std::endl;
+        //     std::cout << "GetParent(hNewFocusWnd) != hWnd: " << y << std::endl;
+        //     std::wcout << L"className: " << className << std::endl;
+        //
+        //     if ((hNewFocusWnd == nullptr || GetParent(hNewFocusWnd) != hWnd) &&
+        //         wcscmp(className, L"Chrome_WidgetWin_1") != 0) {
+        //         ShowWindow(hWnd, SW_HIDE);
+        //     }
+        //     break;
+        // }
+        case WM_ACTIVATE:
+            if (LOWORD(wParam) == WA_INACTIVE) {
+                HWND hNewActive = (HWND) lParam;
+                WCHAR className[256] = {};
+                if (hNewActive)
+                    GetClassNameW(hNewActive, className, 255);
+
+                std::wcout << L"WM_ACTIVATE lost focus to: " << className << std::endl;
+
+                if (hNewActive == nullptr ||
+                    (GetParent(hNewActive) != hWnd &&
+                     wcscmp(className, L"Chrome_WidgetWin_1") != 0)) {
+                    ShowWindow(hWnd, SW_HIDE); // 隐藏到托盘
+                }
+            }
             break;
         case WM_TRAY_ICON: {
             if (lParam == WM_LBUTTONUP) {
@@ -231,7 +511,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
         case WM_COMMAND:
             switch (LOWORD(wParam)) {
                 case ID_TRAY_ABOUT:
-                    MessageBoxW(hWnd, L"WebView2 示例程序\nBy ChatGPT", L"关于", MB_ICONINFORMATION);
+                    MessageBoxW(hWnd, L"Windows 任务栏窗口管理\nBy 浮木", L"关于", MB_ICONINFORMATION);
                     break;
                 case ID_TRAY_EXIT:
                     Shell_NotifyIconW(NIM_DELETE, &nid); // 删除托盘图标
