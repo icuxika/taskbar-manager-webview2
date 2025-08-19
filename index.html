@@ -101,5 +101,9 @@
         function activateWindow(handle) {
             window.chrome.webview.postMessage(`activateWindow|${handle}`);
         }
+
+        document.addEventListener("DOMContentLoaded", (event) => {
+            getWindows();
+        });
     </script>
 </html>
