@@ -280,12 +280,54 @@ void activate_window(std::wstring wHandle) {
     SetForegroundWindow(hwnd);
 }
 
+bool IsRunningAsAdmin() {
+    BOOL isAdmin = FALSE;
+    PSID adminGroup = nullptr;
+    SID_IDENTIFIER_AUTHORITY ntAuthority = SECURITY_NT_AUTHORITY;
+
+    if (AllocateAndInitializeSid(&ntAuthority, 2,
+                                 SECURITY_BUILTIN_DOMAIN_RID,
+                                 DOMAIN_ALIAS_RID_ADMINS,
+                                 0, 0, 0, 0, 0, 0,
+                                 &adminGroup)) {
+        CheckTokenMembership(nullptr, adminGroup, &isAdmin);
+        FreeSid(adminGroup);
+    }
+
+    return isAdmin;
+}
+
+void RelaunchAsAdmin() {
+    wchar_t exePath[MAX_PATH];
+    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+
+    SHELLEXECUTEINFOW sei = {sizeof(sei)};
+    sei.fMask = SEE_MASK_DEFAULT;
+    sei.hwnd = nullptr;
+    sei.lpVerb = L"runas"; // ← 请求管理员权限
+    sei.lpFile = exePath; // 当前 exe 路径
+    sei.lpParameters = L""; // 如果有命令行参数可以写这里
+    sei.nShow = SW_NORMAL;
+
+    if (!ShellExecuteExW(&sei)) {
+        DWORD err = GetLastError();
+        if (err == ERROR_CANCELLED) {
+            std::wcout << L"用户取消了提升权限" << std::endl;
+        }
+    }
+}
+
 int CALLBACK WinMain(
     _In_ HINSTANCE hInstance,
     _In_ HINSTANCE hPrevInstance,
     _In_ LPSTR lpCmdLine,
     _In_ int nCmdShow
 ) {
+    if (!IsRunningAsAdmin()) {
+        RelaunchAsAdmin();
+        return 0; // 原进程退出
+    }
+
     SetProcessDPIAware();
 
     WNDCLASSEX wcex;
