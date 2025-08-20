@@ -4,13 +4,16 @@ project(taskbar-manager-webview2 VERSION 1.0.0.0)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "/utf-8 /EHsc")
 
-set(APP_ICON_PATH "${CMAKE_SOURCE_DIR}/icon.ico")
+set(APP_ICON_PATH "${CMAKE_SOURCE_DIR}/resource/icon.ico")
 configure_file(
         "${CMAKE_SOURCE_DIR}/resource/WindowsProject.rc.in"
         "${CMAKE_BINARY_DIR}/WindowsProject.rc"
         @ONLY
 )
-add_executable(${PROJECT_NAME} WIN32 main.cpp ${CMAKE_BINARY_DIR}/WindowsProject.rc)
+
+file(GLOB SOURCES "src/*.cpp")
+add_executable(${PROJECT_NAME} WIN32 main.cpp ${SOURCES} ${CMAKE_BINARY_DIR}/WindowsProject.rc)
+target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 find_program(NUGET_EXE NAMES nuget)
 if (NOT NUGET_EXE)
@@ -29,10 +32,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Dwmapi)
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/index.html $<TARGET_FILE_DIR:${PROJECT_NAME}>/index.html)
+        ${CMAKE_SOURCE_DIR}/resource/index.html $<TARGET_FILE_DIR:${PROJECT_NAME}>/index.html)
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/icon.ico $<TARGET_FILE_DIR:${PROJECT_NAME}>/icon.ico)
+        ${CMAKE_SOURCE_DIR}/resource/icon.ico $<TARGET_FILE_DIR:${PROJECT_NAME}>/icon.ico)
 
 install(TARGETS ${PROJECT_NAME}
         RUNTIME DESTINATION .)
