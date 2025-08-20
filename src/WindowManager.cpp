@@ -13,16 +13,15 @@ namespace v1_taskbar_manager {
         return windows;
     }
 
-    void WindowManager::ActivateWindow(const std::wstring &wHandle) {
-        std::string handle = Utils::WStringToString(wHandle);
-        HWND hwnd = Utils::HexStringToHWnd(handle);
-        if (IsIconic(hwnd)) {
-            ShowWindow(hwnd, SW_RESTORE);
+    void WindowManager::ActivateWindow(const std::string &handle) {
+        HWND hWnd = Utils::HexStringToHWnd(handle);
+        if (IsIconic(hWnd)) {
+            ShowWindow(hWnd, SW_RESTORE);
         }
         keybd_event(VK_MENU, 0, 0, 0);
         keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
 
-        SetForegroundWindow(hwnd);
+        SetForegroundWindow(hWnd);
     }
 
     bool WindowManager::ShouldShowInTaskbar(HWND hWnd) {

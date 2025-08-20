@@ -3,6 +3,8 @@
 #include <string>
 #include <wrl.h>
 #include <wil/com.h>
+
+#include "json.hpp"
 #include "WebView2.h"
 
 using namespace Microsoft::WRL;
@@ -18,10 +20,6 @@ namespace v1_taskbar_manager {
 
         void Resize(const RECT &bounds);
 
-        void ProcessMessage(const std::wstring &message);
-
-        void SendWindowsListToWebView();
-
     private:
         HWND hWnd;
         wil::com_ptr<ICoreWebView2Controller> webviewController;
@@ -32,5 +30,9 @@ namespace v1_taskbar_manager {
         void RegisterMessageHandler();
 
         void LoadApplication();
+
+        void sendResult(const std::string &id, const nlohmann::json &result);
+
+        void emitEvent(const std::string& name, const nlohmann::json& data);
     };
 }

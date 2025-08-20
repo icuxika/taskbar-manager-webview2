@@ -74,12 +74,15 @@
         <ul id="window-list"></ul>
     </body>
     <script>
-        window.chrome.webview.addEventListener("message", (event) => {
-            // alert(event.data);
+        async function quit() {
+            await Native.invoke("quit", {});
+        }
+
+        async function getWindows() {
+            const data = await Native.invoke("getWindows", {});
             const ulEle = document.getElementById("window-list");
             ulEle.innerHTML = "";
 
-            const data = JSON.parse(event.data);
             data.windows.forEach((window) => {
                 const li = document.createElement("li");
                 li.textContent = window.title.substring(0, 64);
@@ -88,22 +91,14 @@
                 };
                 ulEle.appendChild(li);
             });
-        });
-
-        function quit() {
-            window.chrome.webview.postMessage("quit");
         }
 
-        function getWindows() {
-            window.chrome.webview.postMessage("getWindows");
+        async function activateWindow(handle) {
+            await Native.invoke("activateWindow", { handle: handle });
         }
 
-        function activateWindow(handle) {
-            window.chrome.webview.postMessage(`activateWindow|${handle}`);
-        }
-
-        document.addEventListener("DOMContentLoaded", (event) => {
-            getWindows();
+        document.addEventListener("DOMContentLoaded", async (event) => {
+            await getWindows();
         });
     </script>
 </html>

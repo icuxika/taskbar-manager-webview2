@@ -19,7 +19,7 @@ namespace v1_taskbar_manager {
     public:
         static std::vector<WindowInfo> GetTaskbarWindows();
 
-        static void ActivateWindow(const std::wstring &handle);
+        static void ActivateWindow(const std::string &handle);
 
     private:
         static bool ShouldShowInTaskbar(HWND hWnd);
