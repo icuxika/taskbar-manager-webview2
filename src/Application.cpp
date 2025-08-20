@@ -37,11 +37,6 @@ namespace v1_taskbar_manager {
         this->trayManager = std::make_unique<TrayManager>(hWnd);
         this->webViewController = std::make_unique<WebViewController>(hWnd);
 
-        // 注册全局热键
-        globalHotKeyManager->RegisterGlobalHotKey('T', MOD_CONTROL | MOD_ALT, [this]() {
-            ShowWindow(hWnd, SW_RESTORE);
-            SetForegroundWindow(hWnd);
-        });
 
         // 设置窗口圆角
         constexpr DWM_WINDOW_CORNER_PREFERENCE preference = DWMWCP_ROUND;
@@ -115,6 +110,22 @@ namespace v1_taskbar_manager {
                         break;
                     case ID_TRAY_EXIT:
                         PostQuitMessage(0);
+                        break;
+                    case ID_TRAY_ENABLE_HOTKEY:
+                        hotKeyId = globalHotKeyManager->RegisterGlobalHotKey('T', MOD_CONTROL | MOD_ALT, [this]() {
+                            ShowWindow(this->hWnd, SW_RESTORE);
+                            SetForegroundWindow(this->hWnd);
+                        });
+                        if (hotKeyId != 0) {
+                            MessageBoxW(hWnd, L"已成功注册全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                        }
+                        break;
+                    case ID_TRAY_DISABLE_HOTKEY:
+                        if (hotKeyId != 0) {
+                            if (globalHotKeyManager->UnregisterHotKey(hotKeyId)) {
+                                MessageBoxW(hWnd, L"已成功取消全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                            }
+                        }
                         break;
                     default: ;
                 }

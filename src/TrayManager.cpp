@@ -36,6 +36,8 @@ namespace v1_taskbar_manager {
             HMENU hMenu = CreatePopupMenu();
             AppendMenuW(hMenu, MF_STRING, ID_TRAY_ABOUT, L"关于");
             AppendMenuW(hMenu, MF_STRING, ID_TRAY_EXIT, L"退出");
+            AppendMenuW(hMenu, MF_STRING, ID_TRAY_ENABLE_HOTKEY, L"注册全局快捷键 Ctrl+Alt+T");
+            AppendMenuW(hMenu, MF_STRING, ID_TRAY_DISABLE_HOTKEY, L"取消全局快捷键 Ctrl+Alt+T");
 
             POINT pt;
             GetCursorPos(&pt);
