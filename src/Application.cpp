@@ -14,12 +14,13 @@ namespace v1_taskbar_manager {
     int Application::Run(HINSTANCE hInstance, int nCmdShow) {
         SetupDPI();
 
-        if (Utils::IsAlreadyRunning(L"TaskbarManagerWebview2", mutex)) {
-            MessageBoxW(nullptr, L"程序已经在运行", L"错误", MB_OK | MB_ICONERROR);
-            return 0;
-        }
         if (!Utils::IsRunningAsAdmin()) {
             Utils::RelaunchAsAdmin();
+            return 0;
+        }
+
+        if (Utils::IsAlreadyRunning(L"TaskbarManagerWebview2", mutex)) {
+            MessageBoxW(nullptr, L"程序已经在运行", L"错误", MB_OK | MB_ICONERROR);
             return 0;
         }
 
