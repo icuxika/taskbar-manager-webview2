@@ -24,5 +24,7 @@ namespace v1_taskbar_manager {
         static void CreateConsole();
 
         static bool IsAlreadyRunning(const std::wstring &mutexName, HANDLE &mutex);
+
+        static std::wstring LoadWStringFromResource(int id, int type);
     };
 }

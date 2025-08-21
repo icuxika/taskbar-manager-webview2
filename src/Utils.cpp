@@ -144,4 +144,14 @@ namespace v1_taskbar_manager {
         // 这里暂不判断CreateMutexW创建失败的情况
         return false;
     }
+
+    std::wstring Utils::LoadWStringFromResource(const int id, const int type) {
+        const HRSRC hRes = FindResource(nullptr,MAKEINTRESOURCE(id), MAKEINTRESOURCE(type));
+        DWORD size = SizeofResource(GetModuleHandle(nullptr), hRes);
+        HGLOBAL hGlobal = LoadResource(GetModuleHandle(nullptr), hRes);
+        LPVOID pBuffer = LockResource(hGlobal);
+        const char *data = static_cast<const char *>(pBuffer);
+        std::string str(data, size);
+        return StringToWString(str);
+    }
 }

@@ -14,7 +14,7 @@ using namespace Microsoft::WRL;
 namespace v1_taskbar_manager {
     class WebViewController {
     public:
-        explicit WebViewController(HWND hWnd, std::weak_ptr<GlobalHotKeyManager> globalHotKeyManager);
+        explicit WebViewController(HWND hWnd, std::weak_ptr<GlobalHotKeyManager> globalHotKeyManager, int port);
 
         ~WebViewController();
 
@@ -27,6 +27,7 @@ namespace v1_taskbar_manager {
         wil::com_ptr<ICoreWebView2Controller> webviewController;
         wil::com_ptr<ICoreWebView2> webview;
         std::weak_ptr<GlobalHotKeyManager> globalHotKeyManager;
+        int port;
 
         void SetupWebViewSettings();
 

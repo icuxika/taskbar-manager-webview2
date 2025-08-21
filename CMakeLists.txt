@@ -5,10 +5,18 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "/utf-8 /EHsc")
 
 set(APP_ICON_PATH "${CMAKE_SOURCE_DIR}/resource/icon.ico")
+set(HTML_PATH "${CMAKE_SOURCE_DIR}/resource/index.html")
+set(BRIDGE_SCRIPT_PATH "${CMAKE_SOURCE_DIR}/resource/bridge.js")
 configure_file(
         "${CMAKE_SOURCE_DIR}/resource/WindowsProject.rc.in"
         "${CMAKE_BINARY_DIR}/WindowsProject.rc"
         @ONLY
+)
+
+set_source_files_properties(
+        ${CMAKE_BINARY_DIR}/WindowsProject.rc
+        PROPERTIES
+        OBJECT_DEPENDS "${HTML_PATH};${APP_ICON_PATH};${BRIDGE_SCRIPT_PATH}"
 )
 
 file(GLOB SOURCES "src/*.cpp")
@@ -28,23 +36,10 @@ target_link_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR}/packages/Micr
 target_link_libraries(${PROJECT_NAME} PUBLIC WebView2LoaderStatic)
 
 target_include_directories(${PROJECT_NAME} PRIVATE third-party\\nlohmann)
-target_link_libraries(${PROJECT_NAME} PRIVATE Dwmapi)
-
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/resource/index.html $<TARGET_FILE_DIR:${PROJECT_NAME}>/index.html)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/resource/icon.ico $<TARGET_FILE_DIR:${PROJECT_NAME}>/icon.ico)
+target_link_libraries(${PROJECT_NAME} PRIVATE Dwmapi Ws2_32)
 
 install(TARGETS ${PROJECT_NAME}
         RUNTIME DESTINATION .)
-
-install(FILES ${CMAKE_SOURCE_DIR}/resource/index.html
-        DESTINATION .)
-
-install(FILES ${CMAKE_SOURCE_DIR}/resource/icon.ico
-        DESTINATION .)
 
 set(CPACK_GENERATOR "ZIP")
 set(CPACK_PACKAGE_NAME "TaskbarManager")

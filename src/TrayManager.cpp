@@ -17,7 +17,7 @@ namespace v1_taskbar_manager {
         nid.uID = 1;
         nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
         nid.uCallbackMessage = WM_TRAY_ICON;
-        nid.hIcon = static_cast<HICON>(LoadImage(nullptr, "icon.ico", IMAGE_ICON, 16, 16, LR_LOADFROMFILE));
+        nid.hIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(301));
         lstrcpyW(nid.szTip, L"Windows 任务栏窗口管理");
         Shell_NotifyIconW(NIM_ADD, &nid);
     }

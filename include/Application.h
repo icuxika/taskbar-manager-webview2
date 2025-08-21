@@ -1,6 +1,8 @@
 #pragma once
+#include <winsock2.h>
 #include <windows.h>
 #include <memory>
+#include <thread>
 
 #include "GlobalHotKeyManager.h"
 #include "TrayManager.h"
@@ -30,6 +32,10 @@ namespace v1_taskbar_manager {
 
         void Cleanup();
 
+        int StartHttpServerAsync();
+
+        void StopHttpServer();
+
         HINSTANCE hInstance = nullptr;
         HWND hWnd = nullptr;
         int hotKeyId = 0;
@@ -37,6 +43,9 @@ namespace v1_taskbar_manager {
         std::unique_ptr<TrayManager> trayManager;
         std::unique_ptr<WebViewController> webViewController;
         HANDLE mutex = nullptr;
+        std::thread serverThread;
+        std::atomic<bool> shouldStop{false};
+        SOCKET serverSocket = INVALID_SOCKET;
     };
 }
 

@@ -1,7 +1,10 @@
 #include "Application.h"
 
 #include <dwmapi.h>
+#include <future>
 #include <iostream>
+#include <sstream>
+
 #include "Constants.h"
 #include "Utils.h"
 
@@ -33,6 +36,8 @@ namespace v1_taskbar_manager {
 
         // Utils::CreateConsole();
 
+        int port = StartHttpServerAsync();
+
         this->hWnd = CreateMainWindow(hInstance, nCmdShow);
         if (!hWnd) {
             MessageBox(nullptr, TEXT("Failed to create window!"),
@@ -42,7 +47,7 @@ namespace v1_taskbar_manager {
 
         this->globalHotKeyManager = std::make_shared<GlobalHotKeyManager>(hWnd);
         this->trayManager = std::make_unique<TrayManager>(hWnd);
-        this->webViewController = std::make_unique<WebViewController>(hWnd, this->globalHotKeyManager);
+        this->webViewController = std::make_unique<WebViewController>(hWnd, this->globalHotKeyManager, port);
 
 
         // 设置窗口圆角
@@ -217,6 +222,122 @@ namespace v1_taskbar_manager {
         globalHotKeyManager.reset();
         if (mutex) {
             CloseHandle(mutex);
+        }
+        StopHttpServer();
+    }
+
+    int Application::StartHttpServerAsync() {
+        const std::wstring wStrHTML = Utils::LoadWStringFromResource(302, 303);
+        const std::string html = Utils::WStringToString(wStrHTML);
+
+        std::promise<int> portPromise;
+        auto portFuture = portPromise.get_future();
+
+        serverThread = std::thread([html, p = std::move(portPromise), this]() mutable {
+            WSADATA wsaData;
+            const int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+            if (result != 0) {
+                p.set_value(-1);
+                return;
+            }
+
+            serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+            if (serverSocket == INVALID_SOCKET) {
+                WSACleanup();
+                p.set_value(-1);
+                return;
+            }
+
+            constexpr int reuseAddr = 1;
+            setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR,
+                       reinterpret_cast<const char *>(&reuseAddr), sizeof(reuseAddr));
+
+            sockaddr_in addr{};
+            addr.sin_family = AF_INET;
+            addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            addr.sin_port = 0;
+
+            if (bind(serverSocket, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == SOCKET_ERROR) {
+                closesocket(serverSocket);
+                WSACleanup();
+                p.set_value(-1);
+                return;
+            }
+
+            sockaddr_in actualAddr{};
+            int len = sizeof(actualAddr);
+            if (getsockname(serverSocket, reinterpret_cast<sockaddr *>(&actualAddr), &len) == SOCKET_ERROR) {
+                closesocket(serverSocket);
+                WSACleanup();
+                p.set_value(-1);
+                return;
+            }
+            int actualPort = ntohs(actualAddr.sin_port);
+
+            if (listen(serverSocket, 5) == SOCKET_ERROR) {
+                // 增加backlog到5
+                closesocket(serverSocket);
+                WSACleanup();
+                p.set_value(-1);
+                return;
+            }
+
+            std::cout << "HTTP server running on port " << actualPort << std::endl;
+            p.set_value(actualPort);
+
+            while (!shouldStop.load()) {
+                SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
+                if (clientSocket == INVALID_SOCKET) {
+                    continue;
+                }
+
+                // 读取客户端请求
+                char buffer[4096];
+                if (const int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0); bytesReceived > 0) {
+                    buffer[bytesReceived] = '\0';
+                    // 可以在这里解析HTTP请求，现在只是简单读取
+                    std::cout << "Received request from client" << std::endl;
+                }
+
+                std::ostringstream response;
+                response << "HTTP/1.1 200 OK\r\n";
+                response << "Content-Type: text/html; charset=utf-8\r\n";
+                response << "Content-Length: " << html.size() << "\r\n";
+                response << "Connection: close\r\n";
+                response << "\r\n";
+                response << html;
+
+                std::string responseStr = response.str();
+
+                // 发送响应
+                int totalSent = 0;
+                int responseSize = static_cast<int>(responseStr.size());
+                while (totalSent < responseSize) {
+                    int sent = send(clientSocket, responseStr.c_str() + totalSent,
+                                    responseSize - totalSent, 0);
+                    if (sent == SOCKET_ERROR) {
+                        break;
+                    }
+                    totalSent += sent;
+                }
+                shutdown(clientSocket, SD_SEND);
+                Sleep(100);
+                closesocket(clientSocket);
+            }
+            closesocket(serverSocket);
+            WSACleanup();
+        });
+        return portFuture.get();
+    }
+
+
+    void Application::StopHttpServer() {
+        shouldStop.store(true);
+        if (serverSocket != INVALID_SOCKET) {
+            closesocket(serverSocket);
+        }
+        if (serverThread.joinable()) {
+            serverThread.join();
         }
     }
 }
