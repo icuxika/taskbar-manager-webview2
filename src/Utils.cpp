@@ -133,7 +133,7 @@ namespace v1_taskbar_manager {
     bool Utils::IsAlreadyRunning(const std::wstring &mutexName) {
         const HANDLE mutex = CreateMutexW(nullptr, false, mutexName.c_str());
         if (mutex == nullptr) {
-            return true;
+            return false;
         }
         if (GetLastError() == ERROR_ALREADY_EXISTS) {
             CloseHandle(mutex);
