@@ -14,6 +14,9 @@ namespace v1_taskbar_manager {
 
         int RegisterGlobalHotKey(UINT vkCode, UINT modifiers, std::function<void()> callback);
 
+        int RegisterGlobalHotKey(bool ctrl, bool shift, bool alt, const std::string &key,
+                                 std::function<void()> callback);
+
         bool UnregisterHotKey(int id);
 
         void UnregisterAll();
@@ -31,5 +34,7 @@ namespace v1_taskbar_manager {
         HWND hWnd;
         std::map<int, std::function<void()> > callbacks;
         int nextId;
+
+        UINT GetVirtualKeyCode(const std::string &key);
     };
 }

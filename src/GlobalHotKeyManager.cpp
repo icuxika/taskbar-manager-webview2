@@ -17,7 +17,7 @@ namespace v1_taskbar_manager {
         }
 
         // 注册失败，输出错误信息
-        DWORD error = GetLastError();
+        const DWORD error = GetLastError();
         OutputDebugStringA("RegisterHotKey failed: ");
 
         switch (error) {
@@ -38,6 +38,18 @@ namespace v1_taskbar_manager {
         }
 
         return -1; // 注册失败
+    }
+
+    int GlobalHotKeyManager::RegisterGlobalHotKey(const bool ctrl, const bool shift, const bool alt,
+                                                  const std::string &key,
+                                                  std::function<void()> callback) {
+        UINT modifiers = 0;
+        if (ctrl) modifiers |= MOD_CONTROL;
+        if (shift) modifiers |= MOD_SHIFT;
+        if (alt) modifiers |= MOD_ALT;
+
+        const UINT vk = GetVirtualKeyCode(key);
+        return RegisterGlobalHotKey(vk, modifiers, std::move(callback));
     }
 
     bool GlobalHotKeyManager::UnregisterHotKey(int id) {
@@ -100,5 +112,26 @@ namespace v1_taskbar_manager {
             return true;
         }
         return false;
+    }
+
+    UINT GlobalHotKeyManager::GetVirtualKeyCode(const std::string &key) {
+        static std::unordered_map<std::string, UINT> keyMap = {
+            {"A", 'A'}, {"B", 'B'}, {"C", 'C'}, {"D", 'D'},
+            {"E", 'E'}, {"F", 'F'}, {"G", 'G'}, {"H", 'H'},
+            {"I", 'I'}, {"J", 'J'}, {"K", 'K'}, {"L", 'L'},
+            {"M", 'M'}, {"N", 'N'}, {"O", 'O'}, {"P", 'P'},
+            {"Q", 'Q'}, {"R", 'R'}, {"S", 'S'}, {"T", 'T'},
+            {"U", 'U'}, {"V", 'V'}, {"W", 'W'}, {"X", 'X'},
+            {"Y", 'Y'}, {"Z", 'Z'},
+            {"F1", VK_F1}, {"F2", VK_F2}, {"F3", VK_F3}, {"F4", VK_F4},
+            {"F5", VK_F5}, {"F6", VK_F6}, {"F7", VK_F7}, {"F8", VK_F8},
+            {"F9", VK_F9}, {"F10", VK_F10}, {"F11", VK_F11}, {"F12", VK_F12},
+            {"ESC", VK_ESCAPE}, {"TAB", VK_TAB}, {"SPACE", VK_SPACE},
+            {"ENTER", VK_RETURN}, {"UP", VK_UP}, {"DOWN", VK_DOWN},
+            {"LEFT", VK_LEFT}, {"RIGHT", VK_RIGHT}
+        };
+
+        if (const auto it = keyMap.find(key); it != keyMap.end()) return it->second;
+        return 0;
     }
 }

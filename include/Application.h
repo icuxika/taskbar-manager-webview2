@@ -33,7 +33,7 @@ namespace v1_taskbar_manager {
         HINSTANCE hInstance = nullptr;
         HWND hWnd = nullptr;
         int hotKeyId = 0;
-        std::unique_ptr<GlobalHotKeyManager> globalHotKeyManager;
+        std::shared_ptr<GlobalHotKeyManager> globalHotKeyManager;
         std::unique_ptr<TrayManager> trayManager;
         std::unique_ptr<WebViewController> webViewController;
     };

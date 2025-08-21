@@ -24,7 +24,7 @@ namespace v1_taskbar_manager {
             return 1;
         }
 
-        // Utils::CreateConsole();
+        Utils::CreateConsole();
 
         this->hWnd = CreateMainWindow(hInstance, nCmdShow);
         if (!hWnd) {
@@ -33,9 +33,9 @@ namespace v1_taskbar_manager {
             return 1;
         }
 
-        this->globalHotKeyManager = std::make_unique<GlobalHotKeyManager>(hWnd);
+        this->globalHotKeyManager = std::make_shared<GlobalHotKeyManager>(hWnd);
         this->trayManager = std::make_unique<TrayManager>(hWnd);
-        this->webViewController = std::make_unique<WebViewController>(hWnd);
+        this->webViewController = std::make_unique<WebViewController>(hWnd, this->globalHotKeyManager);
 
 
         // 设置窗口圆角

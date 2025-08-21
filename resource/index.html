@@ -25,38 +25,106 @@
                     rgb(234, 236, 198)
                 );
                 color: #333;
-                padding: 40px;
+                padding: 30px;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
+                gap: 20px;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+                color: #004578;
+            }
+
+            .button-group {
+                display: flex;
+                gap: 12px;
+                flex-wrap: wrap;
+                justify-content: center;
             }
 
             button {
-                padding: 10px 20px;
+                padding: 8px 18px;
                 font-size: 1rem;
                 background-color: #0078d4;
                 color: white;
                 border: none;
                 border-radius: 6px;
                 cursor: pointer;
-                transition: background-color 0.2s ease;
-                margin-bottom: 20px;
+                transition: background-color 0.2s ease, transform 0.1s ease;
+                min-width: 100px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
             }
 
             button:hover {
                 background-color: #005fa3;
+                transform: translateY(-1px);
             }
 
+            button:active {
+                transform: translateY(0);
+            }
+
+            .card {
+                background: #ffffffcc;
+                padding: 16px 20px;
+                border-radius: 10px;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+                width: 100%;
+                max-width: 640px;
+            }
+
+            /* 热键管理紧凑布局 */
+            .hotkey-section {
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+            }
+
+            .hotkey-section input[type="text"] {
+                flex: 1;
+                padding: 8px 10px;
+                font-size: 1rem;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                outline: none;
+                transition: border 0.2s ease, box-shadow 0.2s ease;
+                min-width: 180px;
+            }
+
+            .hotkey-section input[type="text"]:focus {
+                border-color: #0078d4;
+                box-shadow: 0 0 4px rgba(0, 120, 212, 0.4);
+            }
+
+            .hotkey-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-around;
+                margin-top: 8px;
+            }
+
+            .hotkey-row button {
+                flex-shrink: 0;
+                padding: 8px 16px;
+                font-size: 0.95rem;
+            }
+
+            .hotkey-row button.clear {
+                background-color: #d83b01;
+            }
+
+            /* 窗口列表样式 */
             ul#window-list {
                 list-style: none;
-                width: 100%;
-                max-width: 600px;
+                margin-top: 12px;
             }
 
             ul#window-list li {
                 background-color: white;
-                padding: 12px 16px;
-                margin-bottom: 8px;
+                padding: 10px 14px;
+                margin-bottom: 6px;
                 border-radius: 6px;
                 box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
                 cursor: pointer;
@@ -69,11 +137,44 @@
         </style>
     </head>
     <body>
-        <button type="button" onclick="quit()">退出</button>
-        <button type="button" onclick="getWindows()">获取任务栏窗口</button>
-        <ul id="window-list"></ul>
+        <!-- 操作按钮 -->
+        <div class="button-group">
+            <button type="button" onclick="quit()">退出</button>
+            <button type="button" onclick="getWindows()">获取任务栏窗口</button>
+        </div>
+
+        <!-- 热键注册 -->
+        <div class="card">
+            <h2 style="margin-bottom: 8px; font-size: 1.2rem">
+                设置快捷键: 显示Taskbar Manager窗口
+            </h2>
+            <div class="hotkey-section">
+                <input
+                    type="text"
+                    id="hotkeyInput"
+                    placeholder="例如 Ctrl+Alt+T"
+                    readonly
+                />
+            </div>
+            <div class="hotkey-row">
+                <button type="button" onclick="registerHotkey()">
+                    注册快捷键
+                </button>
+                <button type="button" class="clear" onclick="clearHotkey()">
+                    清除快捷键
+                </button>
+            </div>
+        </div>
+
+        <!-- 窗口列表 -->
+        <div class="card">
+            <h2 style="margin-bottom: 8px; font-size: 1.2rem">窗口列表</h2>
+            <ul id="window-list"></ul>
+        </div>
     </body>
     <script>
+        let lastShortcut = "";
+
         async function quit() {
             await Native.invoke("quit", {});
         }
@@ -97,8 +198,93 @@
             await Native.invoke("activateWindow", { handle: handle });
         }
 
+        async function registerHotkey() {
+            // 系统禁止的快捷键，避免冲突
+            const forbidden = [
+                "Ctrl + A",
+                "Ctrl + C",
+                "Ctrl + V",
+                "Ctrl + X",
+                "Ctrl + Z",
+                "Alt + Tab",
+                "Alt + F4",
+            ];
+            if (forbidden.includes(lastShortcut)) {
+                alert("该快捷键与系统快捷键冲突，无法注册");
+                return;
+            }
+
+            // 拆解为结构化对象
+            const parts = lastShortcut.split(" + ").map((p) => p.trim());
+            const info = {
+                ctrl: parts.includes("Ctrl"),
+                shift: parts.includes("Shift"),
+                alt: parts.includes("Alt"),
+                key:
+                    parts.find((p) => !["Ctrl", "Shift", "Alt"].includes(p)) ||
+                    "",
+            };
+
+            if (!info.key) {
+                alert("快捷键无效：缺少主键");
+                return;
+            }
+
+            const data = await Native.invoke("registerHotkey", {
+                hotkey: info,
+            });
+            alert(data.message);
+        }
+
+        async function clearHotkey() {
+            const hotkeyInputEle = document.getElementById("hotkeyInput");
+            hotkeyInputEle.value = "";
+            lastShortcut = "";
+            const data = await Native.invoke("clearHotkey", {});
+            alert(data.message);
+        }
+
         document.addEventListener("DOMContentLoaded", async (event) => {
             await getWindows();
+
+            const hotkeyInputEle = document.getElementById("hotkeyInput");
+            const modifierKeys = ["Control", "Shift", "Alt"];
+            hotkeyInputEle.addEventListener("keydown", (event) => {
+                // 忽略 IME 合成阶段或非可控按键
+                if (event.keyCode === 229 || event.isComposing) return;
+
+                // 防止长按重复触发
+                if (event.repeat) return;
+
+                // 如果是 Tab，允许原生焦点切换（可选）
+                if (event.key === "Tab") return;
+
+                // 只在我们确定要捕获时阻止默认
+                event.preventDefault();
+
+                let keys = [];
+                if (event.ctrlKey) keys.push("Ctrl");
+                if (event.shiftKey) keys.push("Shift");
+                if (event.altKey) keys.push("Alt");
+
+                if (!modifierKeys.includes(event.key)) {
+                    let k =
+                        event.key.length === 1
+                            ? event.key.toUpperCase()
+                            : event.key;
+                    // space 特殊显示为 Space 更友好
+                    if (k === " ") k = "Space";
+                    keys.push(k);
+                }
+
+                if (keys.length === 0 || modifierKeys.includes(event.key)) {
+                    hotkeyInputEle.value = "";
+                    return;
+                }
+
+                lastShortcut = keys.join(" + ");
+                hotkeyInputEle.value = lastShortcut;
+            });
         });
     </script>
 </html>

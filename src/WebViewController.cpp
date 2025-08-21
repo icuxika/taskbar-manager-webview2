@@ -7,7 +7,8 @@
 #include "WindowManager.h"
 
 namespace v1_taskbar_manager {
-    WebViewController::WebViewController(HWND hWnd): hWnd(hWnd) {
+    WebViewController::WebViewController(HWND hWnd, std::weak_ptr<GlobalHotKeyManager> globalHotKeyManager): hWnd(hWnd),
+        globalHotKeyManager(globalHotKeyManager) {
     }
 
     WebViewController::~WebViewController() {
@@ -158,12 +159,11 @@ namespace v1_taskbar_manager {
                     }
                     if (cmd == "getWindows") {
                         const std::vector<WindowInfo> windows = WindowManager::GetTaskbarWindows();
-                        using json = nlohmann::json;
-                        json result;
-                        result["windows"] = json::array();
+                        nlohmann::json result;
+                        result["windows"] = nlohmann::json::array();
 
                         for (const auto &info: windows) {
-                            json windowJson;
+                            nlohmann::json windowJson;
                             if (std::string title = Utils::WStringToString(info.title); !title.empty()) {
                                 windowJson["title"] = title;
                             } else {
@@ -178,6 +178,42 @@ namespace v1_taskbar_manager {
                         const std::string handle = args.value("handle", "");
                         std::cout << "handle: " << handle << std::endl;
                         WindowManager::ActivateWindow(handle);
+                    }
+                    if (cmd == "registerHotkey") {
+                        const nlohmann::json hotkey =
+                                args.contains("hotkey") ? args["hotkey"] : nlohmann::json(nullptr);
+                        const bool ctrl = hotkey.value("ctrl", false);
+                        const bool shift = hotkey.value("shift", false);
+                        const bool alt = hotkey.value("alt", false);
+                        const std::string key = hotkey.value("key", "");
+                        std::cout << "ctrl: " << ctrl << std::endl;
+                        std::cout << "shift: " << shift << std::endl;
+                        std::cout << "alt: " << alt << std::endl;
+                        std::cout << "key: " << key << std::endl;
+
+                        if (auto ghm = globalHotKeyManager.lock()) {
+                            int ret = ghm->RegisterGlobalHotKey(ctrl, shift, alt, key, [this] {
+                                ShowWindow(this->hWnd, SW_RESTORE);
+                                SetForegroundWindow(this->hWnd);
+                            });
+
+                            nlohmann::json result;
+                            if (ret == -1) {
+                                result["message"] = "操作失败";
+                            } else {
+                                result["message"] = "操作成功";
+                            }
+                            sendResult(id, result);
+                        }
+                    }
+                    if (cmd == "clearHotkey") {
+                        if (auto ghm = globalHotKeyManager.lock()) {
+                            ghm->UnregisterAll();
+
+                            nlohmann::json result;
+                            result["message"] = "操作成功";
+                            sendResult(id, result);
+                        }
                     }
                     return S_OK;
                 }).Get(), &token);
