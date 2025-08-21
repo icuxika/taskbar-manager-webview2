@@ -23,6 +23,6 @@ namespace v1_taskbar_manager {
 
         static void CreateConsole();
 
-        static bool IsAlreadyRunning(const std::wstring &mutexName);
+        static bool IsAlreadyRunning(const std::wstring &mutexName, HANDLE &mutex);
     };
 }

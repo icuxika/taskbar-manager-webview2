@@ -130,15 +130,18 @@ namespace v1_taskbar_manager {
         std::wcout << L"=== WebView2 Debug Console Started ===" << std::endl;
     }
 
-    bool Utils::IsAlreadyRunning(const std::wstring &mutexName) {
-        const HANDLE mutex = CreateMutexW(nullptr, false, mutexName.c_str());
-        if (mutex == nullptr) {
+    bool Utils::IsAlreadyRunning(const std::wstring &mutexName, HANDLE &mutex) {
+        const std::wstring globalMutexName = L"Global\\" + mutexName;
+        mutex = CreateMutexW(nullptr, false, mutexName.c_str());
+        if (mutex != nullptr) {
+            if (GetLastError() == ERROR_ALREADY_EXISTS) {
+                CloseHandle(mutex);
+                mutex = nullptr;
+                return true;
+            }
             return false;
         }
-        if (GetLastError() == ERROR_ALREADY_EXISTS) {
-            CloseHandle(mutex);
-            return true;
-        }
+        // 这里暂不判断CreateMutexW创建失败的情况
         return false;
     }
 }

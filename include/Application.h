@@ -36,6 +36,7 @@ namespace v1_taskbar_manager {
         std::shared_ptr<GlobalHotKeyManager> globalHotKeyManager;
         std::unique_ptr<TrayManager> trayManager;
         std::unique_ptr<WebViewController> webViewController;
+        HANDLE mutex = nullptr;
     };
 }
 
