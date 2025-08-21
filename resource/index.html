@@ -30,6 +30,8 @@
                 flex-direction: column;
                 align-items: center;
                 gap: 20px;
+                height: 100vh;
+                overflow: hidden; /* 防止整个页面滚动 */
             }
 
             h1 {
@@ -42,6 +44,7 @@
                 gap: 12px;
                 flex-wrap: wrap;
                 justify-content: center;
+                flex-shrink: 0; /* 防止按钮组被压缩 */
             }
 
             button {
@@ -66,16 +69,18 @@
                 transform: translateY(0);
             }
 
-            .card {
+            .hotkey-card {
                 background: #ffffffcc;
                 padding: 16px 20px;
                 border-radius: 10px;
                 box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
                 width: 100%;
                 max-width: 640px;
+                display: flex;
+                flex-direction: column;
+                flex-shrink: 0; /* 防止快捷键卡片被压缩 */
             }
 
-            /* 热键管理紧凑布局 */
             .hotkey-section {
                 display: flex;
                 align-items: center;
@@ -115,10 +120,75 @@
                 background-color: #d83b01;
             }
 
-            /* 窗口列表样式 */
+            .window-list-card {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                background: #ffffffcc;
+                padding: 16px 20px;
+                border-radius: 10px;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+                width: 100%;
+                max-width: 640px;
+                min-height: 0; /* 允许弹性项目缩小到内容以下 */
+                overflow: hidden; /* 防止卡片本身溢出 */
+            }
+
+            .filter-row {
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+                flex-shrink: 0; /* 防止过滤行被压缩 */
+            }
+
+            .filter-row input[type="text"] {
+                flex: 1;
+                padding: 8px 10px;
+                font-size: 1rem;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+                outline: none;
+                transition: border 0.2s ease, box-shadow 0.2s ease;
+                min-width: 180px;
+            }
+
+            .filter-row input[type="text"]:focus {
+                border-color: #0078d4;
+                box-shadow: 0 0 4px rgba(0, 120, 212, 0.4);
+            }
+
+            .window-list-row {
+                flex: 1;
+                min-height: 0; /* 关键：允许弹性项目缩小 */
+                overflow: hidden; /* 防止容器溢出 */
+            }
+
+            /* 窗口列表样式 - 只有这里可以滚动 */
             ul#window-list {
                 list-style: none;
-                margin-top: 12px;
+                margin-top: 8px;
+                height: 100%; /* 占满父容器 */
+                overflow-y: auto; /* 只有窗口列表可以滚动 */
+                padding-right: 4px; /* 为滚动条预留空间 */
+            }
+
+            /* 自定义滚动条样式 */
+            ul#window-list::-webkit-scrollbar {
+                width: 8px;
+            }
+
+            ul#window-list::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 4px;
+            }
+
+            ul#window-list::-webkit-scrollbar-thumb {
+                background: #c1c1c1;
+                border-radius: 4px;
+            }
+
+            ul#window-list::-webkit-scrollbar-thumb:hover {
+                background: #a8a8a8;
             }
 
             ul#window-list li {
@@ -144,7 +214,7 @@
         </div>
 
         <!-- 热键注册 -->
-        <div class="card">
+        <div class="hotkey-card">
             <h2 style="margin-bottom: 8px; font-size: 1.2rem">
                 设置快捷键: 显示Taskbar Manager窗口
             </h2>
@@ -167,9 +237,18 @@
         </div>
 
         <!-- 窗口列表 -->
-        <div class="card">
+        <div class="window-list-card">
             <h2 style="margin-bottom: 8px; font-size: 1.2rem">窗口列表</h2>
-            <ul id="window-list"></ul>
+            <div class="filter-row">
+                <input
+                    type="text"
+                    id="windowFilterInput"
+                    placeholder="输入窗口名称过滤..."
+                />
+            </div>
+            <div class="window-list-row">
+                <ul id="window-list"></ul>
+            </div>
         </div>
     </body>
     <script>
@@ -298,6 +377,20 @@
 
                 lastShortcut = keys.join(" + ");
                 hotkeyInputEle.value = lastShortcut;
+            });
+
+            const ulEle = document.getElementById("window-list");
+            const windowFilterInputEle =
+                document.getElementById("windowFilterInput");
+            windowFilterInputEle.addEventListener("input", (event) => {
+                const filterText = windowFilterInputEle.value.toLowerCase();
+                Array.from(ulEle.children).forEach((li) => {
+                    li.style.display = li.textContent
+                        .toLowerCase()
+                        .includes(filterText)
+                        ? ""
+                        : "none";
+                });
             });
         });
     </script>
