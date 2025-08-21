@@ -1,5 +1,9 @@
-if ((Test-Path -Path .\build\)) {
-    rm -Recurse -Force .\build\
+if (Test-Path -Path .\TaskbarManager-*.zip) {
+    Remove-Item -Force .\TaskbarManager-*.zip
+}
+
+if (Test-Path -Path .\build\) {
+    Remove-Item -Recurse -Force .\build\
 }
 cmake -S . -B build
 cmake --build .\build\ --config MinSizeRel

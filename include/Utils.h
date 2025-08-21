@@ -22,5 +22,7 @@ namespace v1_taskbar_manager {
         static std::wstring GetProcessName(DWORD processId);
 
         static void CreateConsole();
+
+        static bool IsAlreadyRunning(const std::wstring &mutexName);
     };
 }

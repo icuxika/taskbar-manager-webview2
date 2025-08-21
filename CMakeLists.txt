@@ -40,10 +40,10 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 install(TARGETS ${PROJECT_NAME}
         RUNTIME DESTINATION .)
 
-install(FILES ${CMAKE_SOURCE_DIR}/index.html
+install(FILES ${CMAKE_SOURCE_DIR}/resource/index.html
         DESTINATION .)
 
-install(FILES ${CMAKE_SOURCE_DIR}/icon.ico
+install(FILES ${CMAKE_SOURCE_DIR}/resource/icon.ico
         DESTINATION .)
 
 set(CPACK_GENERATOR "ZIP")
