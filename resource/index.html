@@ -175,10 +175,12 @@
     <script>
         let lastShortcut = "";
 
+        // 退出程序
         async function quit() {
             await Native.invoke("quit", {});
         }
 
+        // 获取任务栏程序窗口列表
         async function getWindows() {
             const data = await Native.invoke("getWindows", {});
             const ulEle = document.getElementById("window-list");
@@ -194,10 +196,12 @@
             });
         }
 
+        // 激活窗口
         async function activateWindow(handle) {
             await Native.invoke("activateWindow", { handle: handle });
         }
 
+        // 注册全局快捷键
         async function registerHotkey() {
             // 系统禁止的快捷键，避免冲突
             const forbidden = [
@@ -230,24 +234,34 @@
                 return;
             }
 
+            localStorage.setItem("lastShortcut", lastShortcut);
             const data = await Native.invoke("registerHotkey", {
                 hotkey: info,
             });
-            alert(data.message);
         }
 
+        // 清除全局快捷键
         async function clearHotkey() {
             const hotkeyInputEle = document.getElementById("hotkeyInput");
             hotkeyInputEle.value = "";
             lastShortcut = "";
+            localStorage.removeItem("lastShortcut");
             const data = await Native.invoke("clearHotkey", {});
             alert(data.message);
         }
 
         document.addEventListener("DOMContentLoaded", async (event) => {
+            // 启动时自动获取一次任务栏程序窗口列表
             await getWindows();
 
             const hotkeyInputEle = document.getElementById("hotkeyInput");
+            // 如果用户上次退出程序时没有清楚全局快捷键，则在应用程序启动时自动注册，托盘图标菜单上的全局快捷键注册事件暂时不被记录
+            lastShortcut = localStorage.getItem("lastShortcut");
+            if (lastShortcut !== null) {
+                hotkeyInputEle.value = lastShortcut;
+                registerHotkey();
+            }
+
             const modifierKeys = ["Control", "Shift", "Alt"];
             hotkeyInputEle.addEventListener("keydown", (event) => {
                 // 忽略 IME 合成阶段或非可控按键
