@@ -116,7 +116,8 @@ namespace v1_taskbar_manager {
                     const std::string cmd = msg.value("cmd", "");
 
                     auto logger = spdlog::get("spdlog");
-                    logger->trace("收到invoke: id[{}], cmd[{}]", id, cmd);
+                    logger->log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION}, spdlog::level::trace,
+                                "收到invoke: id[{}], cmd[{}]", id, cmd);
 
                     const nlohmann::json args = msg.contains("args") ? msg["args"] : nlohmann::json(nullptr);
                     if (cmd == "quit") {
