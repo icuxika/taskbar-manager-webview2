@@ -9,4 +9,4 @@ Expand-Archive -LiteralPath .\TaskbarManager-1.0.0-win64-WebView2FixedVersionRun
 Move-Item .\nsis\SourceDir\TaskbarManager-1.0.0-win64\* .\nsis\SourceDir\
 Remove-Item -Recurse -Force .\nsis\SourceDir\TaskbarManager-1.0.0-win64\
 
-.\nsis\build-strlen.ps1
+.\nsis\build.ps1
