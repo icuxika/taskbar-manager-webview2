@@ -14,6 +14,13 @@ namespace v1_taskbar_manager {
         return instance;
     }
 
+    /**
+     * @brief 运行应用程序
+     * @param hInstance 实例句柄
+     * @param nCmdShow 命令显示参数
+     * @return int 应用程序退出码
+     * @note 应用程序的入口点，初始化应用程序并运行消息循环
+     */
     int Application::Run(HINSTANCE hInstance, int nCmdShow) {
         SetupDPI();
 
@@ -71,6 +78,15 @@ namespace v1_taskbar_manager {
         return static_cast<int>(msg.wParam);
     }
 
+    /**
+     * @brief 窗口过程
+     * @param hWnd 窗口句柄
+     * @param message 消息类型
+     * @param wParam 消息参数1
+     * @param lParam 消息参数2
+     * @return LRESULT 消息处理结果
+     * @note 处理窗口消息，包括热键消息
+     */
     LRESULT Application::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
         switch (message) {
             case WM_SIZE:
@@ -161,6 +177,12 @@ namespace v1_taskbar_manager {
         return true;
     }
 
+    /**
+     * @brief 注册窗口类
+     * @param hInstance 实例句柄
+     * @return bool 是否注册成功
+     * @note 注册窗口类，用于创建窗口
+     */
     bool Application::RegisterWindowClass(HINSTANCE hInstance) {
         WNDCLASSEX wcex;
 
@@ -180,6 +202,13 @@ namespace v1_taskbar_manager {
         return RegisterClassEx(&wcex);
     }
 
+    /**
+     * @brief 创建主窗口
+     * @param hInstance 实例句柄
+     * @param nCmdShow 命令显示参数
+     * @return HWND 窗口句柄
+     * @note 创建主窗口，设置窗口属性和位置
+     */
     HWND Application::CreateMainWindow(HINSTANCE hInstance, int nCmdShow) {
         const int physicalWidth = GetSystemMetrics(SM_CXSCREEN);;
         const int physicalHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -226,6 +255,11 @@ namespace v1_taskbar_manager {
         StopHttpServer();
     }
 
+    /**
+     * @brief 启动HTTP服务器异步
+     * @return int 服务器端口号
+     * @note 启动HTTP服务器，监听本地端口，返回服务器端口号
+     */
     int Application::StartHttpServerAsync() {
         const std::wstring wStrHTML = Utils::LoadWStringFromResource(302, 303);
         const std::string html = Utils::WStringToString(wStrHTML);
@@ -295,7 +329,8 @@ namespace v1_taskbar_manager {
 
                 timeval timeout = {0, 100000}; // 100ms超时
 
-                if (int selectResult = select(0, &fds, nullptr, nullptr, &timeout); selectResult > 0 && FD_ISSET(serverSocket, &fds)) {
+                if (int selectResult = select(0, &fds, nullptr, nullptr, &timeout);
+                    selectResult > 0 && FD_ISSET(serverSocket, &fds)) {
                     if (SOCKET clientSocket = accept(serverSocket, nullptr, nullptr); clientSocket != INVALID_SOCKET) {
                         // 读取客户端请求
                         char buffer[4096];
@@ -346,6 +381,11 @@ namespace v1_taskbar_manager {
         }
     }
 
+    /**
+     * @brief 获取首选端口
+     * @return int 端口号
+     * @note 从Windows注册表中读取端口号，如果端口号不可用，则返回0
+     */
     int Application::GetPreferredPort() {
         int savedPort = Utils::ReadPortFromWindowsRegistry();
         if (savedPort > 0) {

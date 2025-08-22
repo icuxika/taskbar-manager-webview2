@@ -5,6 +5,11 @@
 #include "Utils.h"
 
 namespace v1_taskbar_manager {
+    /**
+     * @brief 枚举所有任务栏窗口
+     * @return 包含所有任务栏窗口信息的向量
+     * @note 仅枚举可见窗口，且窗口类名不是"ApplicationFrameWindow"的窗口
+     */
     std::vector<WindowInfo> WindowManager::GetTaskbarWindows() {
         std::vector<WindowInfo> windows;
         if (!EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&windows))) {
@@ -13,6 +18,11 @@ namespace v1_taskbar_manager {
         return windows;
     }
 
+    /**
+     * @brief 激活指定窗口
+     * @param handle 窗口句柄的16进制字符串表示
+     * @note 若窗口最小化则先恢复，再激活
+     */
     void WindowManager::ActivateWindow(const std::string &handle) {
         HWND hWnd = Utils::HexStringToHWnd(handle);
         if (IsIconic(hWnd)) {
@@ -24,6 +34,12 @@ namespace v1_taskbar_manager {
         SetForegroundWindow(hWnd);
     }
 
+    /**
+     * @brief 判断窗口是否应该在任务栏显示
+     * @param hWnd 窗口句柄
+     * @return 若窗口应该在任务栏显示则返回true，否则返回false
+     * @note 考虑窗口可见性、样式、父窗口等因素
+     */
     bool WindowManager::ShouldShowInTaskbar(HWND hWnd) {
         // 检查窗口是否可见
         if (!IsWindowVisible(hWnd)) {
@@ -72,6 +88,13 @@ namespace v1_taskbar_manager {
         return true;
     }
 
+    /**
+     * @brief 枚举窗口回调函数，用于获取任务栏窗口信息
+     * @param hWnd 窗口句柄
+     * @param lParam 指向窗口信息向量的指针
+     * @return 继续枚举返回TRUE，停止枚举返回FALSE
+     * @note 内部调用ShouldShowInTaskbar判断是否应包含窗口
+     */
     BOOL CALLBACK WindowManager::EnumWindowsProc(HWND hWnd, LPARAM lParam) {
         std::vector<WindowInfo> *windows =
                 reinterpret_cast<std::vector<WindowInfo> *>(lParam);

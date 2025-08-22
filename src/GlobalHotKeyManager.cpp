@@ -8,6 +8,14 @@ namespace v1_taskbar_manager {
         UnregisterAll();
     }
 
+    /**
+     * @brief 注册全局热键
+     * @param vkCode 虚拟键码
+     * @param modifiers 修饰键
+     * @param callback 回调函数
+     * @return int 热键ID
+     * @note 注册全局热键，当热键被按下时，会调用回调函数
+     */
     int GlobalHotKeyManager::RegisterGlobalHotKey(UINT vkCode, UINT modifiers, std::function<void()> callback) {
         int id = nextId++;
 
@@ -40,6 +48,16 @@ namespace v1_taskbar_manager {
         return -1; // 注册失败
     }
 
+    /**
+     * @brief 注册全局热键
+     * @param ctrl 是否包含Ctrl键
+     * @param shift 是否包含Shift键
+     * @param alt 是否包含Alt键
+     * @param key 热键的键位
+     * @param callback 回调函数
+     * @return int 热键ID
+     * @note 注册全局热键，当热键被按下时，会调用回调函数
+     */
     int GlobalHotKeyManager::RegisterGlobalHotKey(const bool ctrl, const bool shift, const bool alt,
                                                   const std::string &key,
                                                   std::function<void()> callback) {
@@ -52,6 +70,12 @@ namespace v1_taskbar_manager {
         return RegisterGlobalHotKey(vk, modifiers, std::move(callback));
     }
 
+    /**
+     * @brief 注销全局热键
+     * @param id 热键ID
+     * @return bool 是否注销成功
+     * @note 注销全局热键，释放资源
+     */
     bool GlobalHotKeyManager::UnregisterHotKey(int id) {
         if (callbacks.find(id) != callbacks.end()) {
             if (::UnregisterHotKey(hWnd, id)) {
@@ -62,6 +86,10 @@ namespace v1_taskbar_manager {
         return false;
     }
 
+    /**
+     * @brief 注销所有全局热键
+     * @note 注销所有已注册的全局热键，释放资源
+     */
     void GlobalHotKeyManager::UnregisterAll() {
         for (auto &pair: callbacks) {
             ::UnregisterHotKey(hWnd, pair.first);
@@ -69,6 +97,13 @@ namespace v1_taskbar_manager {
         callbacks.clear();
     }
 
+    /**
+     * @brief 检查热键是否可用
+     * @param vkCode 虚拟键码
+     * @param modifiers 修饰键
+     * @return bool 是否可用
+     * @note 检查热键是否可用，通过尝试注册热键并立即注销来判断
+     */
     bool GlobalHotKeyManager::IsHotKeyAvailable(UINT vkCode, UINT modifiers) {
         int tempId = 9999; // 使用一个临时ID
         bool available = RegisterHotKey(hWnd, tempId, modifiers, vkCode);
@@ -78,6 +113,11 @@ namespace v1_taskbar_manager {
         return available;
     }
 
+    /**
+     * @brief 获取最后一个错误信息
+     * @return std::wstring 错误信息
+     * @note 获取最近一次操作的错误信息，用于调试
+     */
     std::wstring GlobalHotKeyManager::GetLastErrorString() {
         DWORD error = GetLastError();
         switch (error) {
@@ -94,6 +134,13 @@ namespace v1_taskbar_manager {
         }
     }
 
+    /**
+     * @brief 注册全局热键（带回退）
+     * @param keyOptions 热键选项列表
+     * @param callback 回调函数
+     * @return int 热键ID
+     * @note 尝试注册多个热键选项，返回第一个成功注册的热键ID
+     */
     int GlobalHotKeyManager::RegisterHotKeyWithFallback(const std::vector<std::pair<UINT, UINT> > &keyOptions,
                                                         std::function<void()> callback) {
         for (const auto &option: keyOptions) {
@@ -105,6 +152,12 @@ namespace v1_taskbar_manager {
         return -1; // 所有选项都失败
     }
 
+    /**
+     * @brief 处理热键消息
+     * @param wParam 热键ID
+     * @return bool 是否处理成功
+     * @note 当热键被按下时，会调用此函数处理消息
+     */
     bool GlobalHotKeyManager::HandleHotKeyMessage(WPARAM wParam) {
         const int id = static_cast<int>(wParam);
         if (const auto it = callbacks.find(id); it != callbacks.end()) {
@@ -114,6 +167,12 @@ namespace v1_taskbar_manager {
         return false;
     }
 
+    /**
+     * @brief 获取虚拟键码
+     * @param key 键位字符串
+     * @return UINT 虚拟键码
+     * @note 将键位字符串转换为虚拟键码
+     */
     UINT GlobalHotKeyManager::GetVirtualKeyCode(const std::string &key) {
         static std::unordered_map<std::string, UINT> keyMap = {
             {"A", 'A'}, {"B", 'B'}, {"C", 'C'}, {"D", 'D'},

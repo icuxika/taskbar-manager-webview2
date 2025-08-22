@@ -19,6 +19,11 @@ namespace v1_taskbar_manager {
         }
     }
 
+    /**
+     * @brief 初始化WebViewController
+     * @note 调用CreateCoreWebView2EnvironmentWithOptions创建CoreWebView2环境，
+     * 并在环境创建完成后创建CoreWebView2Controller
+     */
     void WebViewController::Initialize() {
         CreateCoreWebView2EnvironmentWithOptions(nullptr, nullptr, nullptr,
                                                  Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
@@ -55,6 +60,10 @@ namespace v1_taskbar_manager {
         }
     }
 
+    /**
+     * @brief 设置WebView2的相关设置
+     * @note 启用脚本、默认脚本对话框、Web消息、开发者工具等
+     */
     void WebViewController::SetupWebViewSettings() {
         if (!webview) {
             return;
@@ -71,6 +80,10 @@ namespace v1_taskbar_manager {
         webview->AddScriptToExecuteOnDocumentCreated(L"Object.freeze(Object);", nullptr);
     }
 
+    /**
+     * @brief 注册WebView2的消息处理函数
+     * @note 当WebView2接收到消息时，会调用此函数处理消息
+     */
     void WebViewController::RegisterMessageHandler() {
         if (!webview) {
             return;
@@ -155,6 +168,10 @@ namespace v1_taskbar_manager {
                 }).Get(), &token);
     }
 
+    /**
+     * @brief 加载应用程序
+     * @note 导航到指定的URL，URL格式为"http://localhost:端口号"
+     */
     void WebViewController::LoadApplication() {
         if (!webview) {
             return;
@@ -164,6 +181,12 @@ namespace v1_taskbar_manager {
         webview->Navigate(url.str().c_str());
     }
 
+    /**
+     * @brief 发送结果消息
+     * @param id 消息ID
+     * @param result 结果数据
+     * @note 用于向WebView2发送结果消息，消息格式为JSON字符串
+     */
     void WebViewController::sendResult(const std::string &id, const nlohmann::json &result) {
         const nlohmann::json payload = {
             {"id", id},
@@ -172,6 +195,12 @@ namespace v1_taskbar_manager {
         webview->PostWebMessageAsJson(Utils::StringToWString(payload.dump()).c_str());
     }
 
+    /**
+     * @brief 发送事件消息
+     * @param name 事件名称
+     * @param data 事件数据
+     * @note 用于向WebView2发送事件消息，消息格式为JSON字符串
+     */
     void WebViewController::emitEvent(const std::string &name, const nlohmann::json &data) {
         const nlohmann::json payload = {
             {"event", name},

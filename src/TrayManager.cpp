@@ -11,6 +11,10 @@ namespace v1_taskbar_manager {
         RemoveTrayIcon();
     }
 
+    /**
+     * @brief 添加任务栏图标
+     * @note 调用Shell_NotifyIconW添加任务栏图标
+     */
     void TrayManager::AddTrayIcon() {
         nid.cbSize = sizeof(NOTIFYICONDATA);
         nid.hWnd = hWnd;
@@ -22,10 +26,21 @@ namespace v1_taskbar_manager {
         Shell_NotifyIconW(NIM_ADD, &nid);
     }
 
+    /**
+     * @brief 移除任务栏图标
+     * @note 调用Shell_NotifyIconW移除任务栏图标
+     */
     void TrayManager::RemoveTrayIcon() {
         Shell_NotifyIconW(NIM_DELETE, &nid);
     }
 
+    /**
+     * @brief 处理任务栏图标消息
+     * @param wParam 消息参数
+     * @param lParam 消息参数
+     * @return LRESULT 消息处理结果
+     * @note 处理任务栏图标消息，包括左键点击和右键点击
+     */
     LRESULT TrayManager::HandleTrayMessage(WPARAM wParam, LPARAM lParam) {
         if (lParam == WM_LBUTTONUP) {
             // 单击左键显示窗口
