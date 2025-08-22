@@ -18,5 +18,12 @@ expand $file -F:* ".\$workDirName"
 Move-Item ".\$workDirName\$rootDir\*" ".\$workDirName\webview2_runtime"
 Remove-Item -Recurse -Force ".\$workDirName\$rootDir"
 
+$vcUri = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+$vcFile = "VC_redist.x64.exe"
+if (!(Test-Path -Path $vcFile)) {
+    Invoke-WebRequest -Uri $vcUri -OutFile $vcFile
+}
+Move-Item $vcFile ".\$workDirName"
+
 Compress-Archive -Path ".\$workDirName" -DestinationPath $zipWithWebView2FixedVersionRuntime
 Remove-Item -Recurse -Force ".\$workDirName"
