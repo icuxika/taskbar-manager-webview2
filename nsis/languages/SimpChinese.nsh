@@ -2,3 +2,4 @@ LangString alreadyInstalled ${LANG_SIMPCHINESE} "${PRODUCT_NAME} 已完成安装
 LangString alreadyUninstalled ${LANG_SIMPCHINESE} "${PRODUCT_NAME} 已完成卸载。"
 LangString uninstallPreviousVersion ${LANG_SIMPCHINESE} "是否卸载旧版本？"
 LangString failedToUninstallPreviousVersion ${LANG_SIMPCHINESE} "卸载旧版本失败，是否继续？"
+LangString vcredistMissing ${LANG_SIMPCHINESE} "缺少 Visual C++ 运行库安装程序 (VC_redist.x64.exe)。$\n$\n没有它，应用程序可能无法正常工作。"

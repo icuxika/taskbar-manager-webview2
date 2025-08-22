@@ -2,3 +2,4 @@ LangString alreadyInstalled ${LANG_ENGLISH} "You have successfully installed ${P
 LangString alreadyUninstalled ${LANG_ENGLISH} "You have successfully uninstalled ${PRODUCT_NAME}."
 LangString uninstallPreviousVersion ${LANG_ENGLISH} "Uninstall previous version?"
 LangString failedToUninstallPreviousVersion ${LANG_ENGLISH} "Failed to uninstall, continue anyway?"
+LangString vcredistMissing ${LANG_ENGLISH} "Visual C++ Redistributable installer (VC_redist.x64.exe) is missing.$\n$\nThe application may not work properly without it."

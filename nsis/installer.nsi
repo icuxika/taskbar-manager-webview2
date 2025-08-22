@@ -166,9 +166,28 @@ Section "MainSection"
   WriteRegStr HKCR "${PRODUCT_URI_SCHEME}\shell\open\command" "" "$INSTDIR\${PRODUCT_FILE}.exe %1"
 
   ReadRegDWORD $0 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "Installed"
-  StrCmp $0 1 skip_vcredist 0
-  ExecWait '"$INSTDIR\VC_redist.x64.exe" /install /quiet /norestart'
-  skip_vcredist:
+  ${If} $0 != 1
+    IfFileExists "$INSTDIR\VC_redist.x64.exe" vcredist_found vcredist_missing
+    vcredist_found:
+      DetailPrint "Installing Visual C++ Redistributable..."
+      ExecWait '"$INSTDIR\VC_redist.x64.exe" /install /quiet /norestart' $1
+      Delete "$INSTDIR\VC_redist.x64.exe"
+      DetailPrint "VC++ Redistributable installation completed"
+      Goto vcredist_end
+    vcredist_missing:
+      MessageBox MB_YESNO|MB_ICONEXCLAMATION "$(vcredistMissing)" /SD IDYES IDYES vcredist_continue
+      Abort
+    vcredist_continue:
+      DetailPrint "User chose to continue without VC++ Redistributable"
+    vcredist_end:
+  ${Else}
+    IfFileExists "$INSTDIR\VC_redist.x64.exe" file_exists file_not_exists
+    file_exists:
+      Delete "$INSTDIR\VC_redist.x64.exe"
+      Goto done
+    file_not_exists:
+    done:
+  ${EndIf}
 SectionEnd
 
 ;--------------------------------    
