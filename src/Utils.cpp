@@ -5,6 +5,8 @@
 #include <iostream>
 #include <sstream>
 
+#include "spdlog/spdlog.h"
+
 namespace v1_taskbar_manager {
     /**
      * @brief 获取当前可执行文件所在的目录路径
@@ -158,7 +160,7 @@ namespace v1_taskbar_manager {
 
         if (!ShellExecuteExW(&sei)) {
             if (const DWORD err = GetLastError(); err == ERROR_CANCELLED) {
-                std::wcout << L"用户取消了提升权限" << std::endl;
+                SPDLOG_TRACE("用户取消了提升权限");
             }
         }
     }
@@ -199,6 +201,9 @@ namespace v1_taskbar_manager {
         // 分配控制台
         AllocConsole();
 
+        // 切换到 UTF-8
+        SetConsoleOutputCP(CP_UTF8);
+
         // 重定向标准输出到控制台
         FILE *pCout;
         freopen_s(&pCout, "CONOUT$", "w", stdout);
@@ -213,8 +218,7 @@ namespace v1_taskbar_manager {
 
         // 设置控制台窗口标题
         SetConsoleTitleW(L"WebView2 Debug Console");
-
-        std::wcout << L"=== WebView2 Debug Console Started ===" << std::endl;
+        SPDLOG_TRACE("=== 控制台 ===");
     }
 
     /**
@@ -267,7 +271,7 @@ namespace v1_taskbar_manager {
                                       0, nullptr, REG_OPTION_NON_VOLATILE,
                                       KEY_WRITE, nullptr, &hKey, nullptr);
         if (result != ERROR_SUCCESS) {
-            std::cerr << "Failed to create registry key" << std::endl;
+            SPDLOG_ERROR("无法在注册表新建项");
             return;
         }
         DWORD portValue = static_cast<DWORD>(port);
@@ -276,7 +280,7 @@ namespace v1_taskbar_manager {
                                 sizeof(DWORD));
 
         if (result != ERROR_SUCCESS) {
-            std::cerr << "Failed to save port to registry" << std::endl;
+            SPDLOG_ERROR("无法在注册表保存端口号");
         }
         RegCloseKey(hKey);
     }

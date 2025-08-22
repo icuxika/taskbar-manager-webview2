@@ -7,6 +7,8 @@
 #include "Utils.h"
 #include "WindowManager.h"
 #include "Shlwapi.h"
+#include "ShlObj.h"
+#include "spdlog/spdlog.h"
 
 namespace v1_taskbar_manager {
     WebViewController::WebViewController(HWND hWnd, std::weak_ptr<GlobalHotKeyManager> globalHotKeyManager,
@@ -26,10 +28,14 @@ namespace v1_taskbar_manager {
      * 并在环境创建完成后创建CoreWebView2Controller
      */
     void WebViewController::Initialize() {
-        std::wstring runtimePath = GetWebView2RuntimePath();
+        const std::wstring runtimePath = GetWebView2RuntimePath();
+        const std::wstring userDataFolder = GetUserDataFolder();
+        SPDLOG_INFO("WebView2 运行时路径: {}", Utils::WStringToString(runtimePath));
+        SPDLOG_INFO("WebView2 用户数据文件夹: {}", Utils::WStringToString(userDataFolder));
+
         CreateCoreWebView2EnvironmentWithOptions(
             runtimePath.empty() ? nullptr : runtimePath.c_str(),
-            nullptr,
+            userDataFolder.c_str(),
             nullptr,
             Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
                 [this](HRESULT result, ICoreWebView2Environment *env) -> HRESULT {
@@ -80,6 +86,8 @@ namespace v1_taskbar_manager {
         settings->put_AreDefaultScriptDialogsEnabled(TRUE);
         settings->put_IsWebMessageEnabled(TRUE);
         settings->put_AreDevToolsEnabled(TRUE);
+        // auto logger = spdlog::get("spdlog");
+        SPDLOG_INFO("WebView2 DevTools 已启用");
 
         webview->AddScriptToExecuteOnDocumentCreated(
             wil::make_bstr(Utils::LoadWStringFromResource(304, 305).c_str()).get(), nullptr);
@@ -106,8 +114,10 @@ namespace v1_taskbar_manager {
                     nlohmann::json msg = nlohmann::json::parse(Utils::WStringToString(message.get()));
                     const std::string id = msg.value("id", "");
                     const std::string cmd = msg.value("cmd", "");
-                    std::cout << "id: " << id << std::endl;
-                    std::cout << "cmd: " << cmd << std::endl;
+
+                    auto logger = spdlog::get("spdlog");
+                    logger->trace("收到invoke: id[{}], cmd[{}]", id, cmd);
+
                     const nlohmann::json args = msg.contains("args") ? msg["args"] : nlohmann::json(nullptr);
                     if (cmd == "quit") {
                         PostQuitMessage(0);
@@ -131,7 +141,6 @@ namespace v1_taskbar_manager {
                     }
                     if (cmd == "activateWindow") {
                         const std::string handle = args.value("handle", "");
-                        std::cout << "handle: " << handle << std::endl;
                         WindowManager::ActivateWindow(handle);
                     }
                     if (cmd == "registerHotkey") {
@@ -141,10 +150,6 @@ namespace v1_taskbar_manager {
                         const bool shift = hotkey.value("shift", false);
                         const bool alt = hotkey.value("alt", false);
                         const std::string key = hotkey.value("key", "");
-                        std::cout << "ctrl: " << ctrl << std::endl;
-                        std::cout << "shift: " << shift << std::endl;
-                        std::cout << "alt: " << alt << std::endl;
-                        std::cout << "key: " << key << std::endl;
 
                         if (auto ghm = globalHotKeyManager.lock()) {
                             int ret = ghm->RegisterGlobalHotKey(ctrl, shift, alt, key, [this] {
@@ -172,6 +177,18 @@ namespace v1_taskbar_manager {
                     }
                     return S_OK;
                 }).Get(), &token);
+    }
+
+    std::wstring WebViewController::GetUserDataFolder() {
+        PWSTR path = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path))) {
+            std::wstring folder(path);
+            CoTaskMemFree(path);
+            folder += L"\\TaskbarManager";
+            CreateDirectoryW(folder.c_str(), nullptr);
+            return folder;
+        }
+        return L".\\WebView2Data";
     }
 
     /**

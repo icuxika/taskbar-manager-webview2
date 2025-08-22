@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "Utils.h"
+#include "spdlog/spdlog.h"
 
 namespace v1_taskbar_manager {
     /**
@@ -13,7 +14,7 @@ namespace v1_taskbar_manager {
     std::vector<WindowInfo> WindowManager::GetTaskbarWindows() {
         std::vector<WindowInfo> windows;
         if (!EnumWindows(EnumWindowsProc, reinterpret_cast<LPARAM>(&windows))) {
-            std::cerr << "枚举窗口失败！\n";
+            SPDLOG_ERROR("枚举窗口失败");
         }
         return windows;
     }

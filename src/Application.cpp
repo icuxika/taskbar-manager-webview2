@@ -7,6 +7,10 @@
 
 #include "Constants.h"
 #include "Utils.h"
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LOGGER_TRACE
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/sinks/basic_file_sink.h"
 
 namespace v1_taskbar_manager {
     Application &Application::GetInstance() {
@@ -22,6 +26,24 @@ namespace v1_taskbar_manager {
      * @note 应用程序的入口点，初始化应用程序并运行消息循环
      */
     int Application::Run(HINSTANCE hInstance, int nCmdShow) {
+        Utils::CreateConsole();
+
+        // trace,debug 输出到控制台，其他级别会被文本记录
+        // 设置日志格式. 参数含义: [日志标识符] [日期] [日志级别] [线程号] [文件名:行号] [数据]
+        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        console_sink->set_level(spdlog::level::trace);
+        console_sink->set_pattern("[%n] [%Y-%m-%d %H:%M:%S.%e] [%^---%L---%$] [%t] [%s:%#] %v");
+        auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/log.txt", true);
+        file_sink->set_level(spdlog::level::info);
+        file_sink->set_pattern("[%n] [%Y-%m-%d %H:%M:%S.%e] [%^---%L---%$] [%t] [%s:%#] %v");
+
+        std::vector<spdlog::sink_ptr> sinks{console_sink, file_sink};
+        const auto logger = std::make_shared<spdlog::logger>("spdlog", sinks.begin(), sinks.end());
+        logger->set_level(spdlog::level::trace);
+        spdlog::set_level(spdlog::level::trace);
+        spdlog::set_default_logger(logger);
+        SPDLOG_INFO("应用程序启动");
+
         SetupDPI();
 
         if (!Utils::IsRunningAsAdmin()) {
@@ -41,9 +63,8 @@ namespace v1_taskbar_manager {
             return 1;
         }
 
-        // Utils::CreateConsole();
-
         int port = StartHttpServerAsync();
+        SPDLOG_INFO("本地 Socket 服务端口: {}", port);
 
         this->hWnd = CreateMainWindow(hInstance, nCmdShow);
         if (!hWnd) {
@@ -55,7 +76,6 @@ namespace v1_taskbar_manager {
         this->globalHotKeyManager = std::make_shared<GlobalHotKeyManager>(hWnd);
         this->trayManager = std::make_unique<TrayManager>(hWnd);
         this->webViewController = std::make_unique<WebViewController>(hWnd, this->globalHotKeyManager, port);
-
 
         // 设置窗口圆角
         constexpr DWM_WINDOW_CORNER_PREFERENCE preference = DWMWCP_ROUND;
@@ -102,8 +122,6 @@ namespace v1_taskbar_manager {
                     WCHAR className[256] = {};
                     if (hNewActive)
                         GetClassNameW(hNewActive, className, 255);
-
-                    std::wcout << L"WM_ACTIVATE lost focus to: " << className << std::endl;
 
                     if (hNewActive == nullptr ||
                         (GetParent(hNewActive) != hWnd &&
@@ -222,10 +240,9 @@ namespace v1_taskbar_manager {
         const int x = (logicalWidth - 480 - 16) * scale;
         const int y = 16 * scale;
 
-        std::cout << "physicalWidth: " << physicalWidth << std::endl;
-        std::cout << "physicalHeight: " << physicalHeight << std::endl;
-        std::cout << "logicalWidth: " << logicalWidth << std::endl;
-        std::cout << "logicalHeight: " << logicalHeight << std::endl;
+        SPDLOG_INFO("Windows 物理像素: {}x{}", physicalWidth, physicalHeight);
+        SPDLOG_INFO("Windows 逻辑像素: {}x{}", logicalWidth, logicalHeight);
+        SPDLOG_INFO("程序窗口位置和大小: {}x{} @ {}x{}", windowWidth, windowHeight, x, y);
 
         return CreateWindowEx(
             WS_EX_TOOLWINDOW,
@@ -253,6 +270,7 @@ namespace v1_taskbar_manager {
             CloseHandle(mutex);
         }
         StopHttpServer();
+        spdlog::shutdown();
     }
 
     /**
@@ -318,7 +336,6 @@ namespace v1_taskbar_manager {
                 return;
             }
 
-            std::cout << "HTTP server running on port " << actualPort << std::endl;
             Utils::SavePortToWindowsRegistry(actualPort);
             p.set_value(actualPort);
 
@@ -387,13 +404,12 @@ namespace v1_taskbar_manager {
      * @note 从Windows注册表中读取端口号，如果端口号不可用，则返回0
      */
     int Application::GetPreferredPort() {
-        int savedPort = Utils::ReadPortFromWindowsRegistry();
+        const int savedPort = Utils::ReadPortFromWindowsRegistry();
         if (savedPort > 0) {
             if (Utils::IsPortAvailable(savedPort)) {
                 return savedPort;
             }
-            std::cout << "Previous port " << savedPort << " is not available, will use system assigned port" <<
-                    std::endl;
+            SPDLOG_INFO("程序上次使用的端口不再可用，将使用系统分配的新端口");
         }
         return 0;
     }
