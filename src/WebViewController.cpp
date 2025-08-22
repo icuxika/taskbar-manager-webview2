@@ -6,6 +6,7 @@
 #include "json.hpp"
 #include "Utils.h"
 #include "WindowManager.h"
+#include "Shlwapi.h"
 
 namespace v1_taskbar_manager {
     WebViewController::WebViewController(HWND hWnd, std::weak_ptr<GlobalHotKeyManager> globalHotKeyManager,
@@ -25,33 +26,38 @@ namespace v1_taskbar_manager {
      * 并在环境创建完成后创建CoreWebView2Controller
      */
     void WebViewController::Initialize() {
-        CreateCoreWebView2EnvironmentWithOptions(nullptr, nullptr, nullptr,
-                                                 Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-                                                     [this](HRESULT result, ICoreWebView2Environment *env) -> HRESULT {
-                                                         // Create a CoreWebView2Controller and get the associated CoreWebView2 whose parent is the main window hWnd
-                                                         env->CreateCoreWebView2Controller(
-                                                             hWnd, Callback<
-                                                                 ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                                                                 [this](HRESULT result,
-                                                                        ICoreWebView2Controller *controller) ->
-                                                             HRESULT {
-                                                                     if (controller != nullptr) {
-                                                                         webviewController = controller;
-                                                                         webviewController->get_CoreWebView2(&webview);
-                                                                     }
+        std::wstring runtimePath = GetWebView2RuntimePath();
+        CreateCoreWebView2EnvironmentWithOptions(
+            runtimePath.empty() ? nullptr : runtimePath.c_str(),
+            nullptr,
+            nullptr,
+            Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
+                [this](HRESULT result, ICoreWebView2Environment *env) -> HRESULT {
+                    // Create a CoreWebView2Controller and get the associated CoreWebView2 whose parent is the main window hWnd
+                    env->CreateCoreWebView2Controller(
+                        hWnd, Callback<
+                            ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+                            [this](HRESULT result,
+                                   ICoreWebView2Controller *controller) ->
+                        HRESULT {
+                                if (controller != nullptr) {
+                                    webviewController = controller;
+                                    webviewController->get_CoreWebView2(&webview);
+                                }
 
-                                                                     SetupWebViewSettings();
-                                                                     RegisterMessageHandler();
+                                SetupWebViewSettings();
+                                RegisterMessageHandler();
 
-                                                                     RECT bounds;
-                                                                     GetClientRect(hWnd, &bounds);
-                                                                     webviewController->put_Bounds(bounds);
+                                RECT bounds;
+                                GetClientRect(hWnd, &bounds);
+                                webviewController->put_Bounds(bounds);
 
-                                                                     LoadApplication();
-                                                                     return S_OK;
-                                                                 }).Get());
-                                                         return S_OK;
-                                                     }).Get());
+                                LoadApplication();
+                                return S_OK;
+                            }).Get());
+                    return S_OK;
+                }).Get()
+        );
     }
 
     void WebViewController::Resize(const RECT &bounds) {
@@ -166,6 +172,25 @@ namespace v1_taskbar_manager {
                     }
                     return S_OK;
                 }).Get(), &token);
+    }
+
+    /**
+     * @brief 获取WebView2运行时路径
+     * @return std::wstring WebView2运行时路径
+     * @note 从可执行文件路径中获取WebView2运行时路径
+     */
+    std::wstring WebViewController::GetWebView2RuntimePath() {
+        wchar_t exePath[MAX_PATH];
+        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+
+        std::wstring exeDir = exePath;
+        exeDir = exeDir.substr(0, exeDir.find_last_of(L"\\/"));
+
+        std::wstring runtimePath = exeDir + L"\\webview2_runtime";
+        if (PathFileExistsW(runtimePath.c_str())) {
+            return runtimePath;
+        }
+        return L"";
     }
 
     /**

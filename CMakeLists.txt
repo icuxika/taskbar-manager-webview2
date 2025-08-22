@@ -36,7 +36,7 @@ target_link_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR}/packages/Micr
 target_link_libraries(${PROJECT_NAME} PUBLIC WebView2LoaderStatic)
 
 target_include_directories(${PROJECT_NAME} PRIVATE third-party\\nlohmann)
-target_link_libraries(${PROJECT_NAME} PRIVATE Dwmapi Ws2_32)
+target_link_libraries(${PROJECT_NAME} PRIVATE Dwmapi Ws2_32 Shlwapi)
 
 install(TARGETS ${PROJECT_NAME}
         RUNTIME DESTINATION .)

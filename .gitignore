@@ -7,3 +7,4 @@ cmake-build-*/
 build/
 *.zip
 _CPack_Packages/
+*.cab

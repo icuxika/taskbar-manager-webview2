@@ -33,6 +33,8 @@ namespace v1_taskbar_manager {
 
         void RegisterMessageHandler();
 
+        std::wstring GetWebView2RuntimePath();
+
         void LoadApplication();
 
         void sendResult(const std::string &id, const nlohmann::json &result);
