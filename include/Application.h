@@ -36,6 +36,8 @@ namespace v1_taskbar_manager {
 
         void StopHttpServer();
 
+        int GetPreferredPort();
+
         HINSTANCE hInstance = nullptr;
         HWND hWnd = nullptr;
         int hotKeyId = 0;

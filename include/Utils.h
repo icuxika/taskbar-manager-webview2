@@ -26,5 +26,11 @@ namespace v1_taskbar_manager {
         static bool IsAlreadyRunning(const std::wstring &mutexName, HANDLE &mutex);
 
         static std::wstring LoadWStringFromResource(int id, int type);
+
+        static void SavePortToWindowsRegistry(int port);
+
+        static int ReadPortFromWindowsRegistry();
+
+        static bool IsPortAvailable(int port);
     };
 }

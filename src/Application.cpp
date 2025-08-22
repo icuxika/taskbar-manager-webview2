@@ -252,10 +252,12 @@ namespace v1_taskbar_manager {
             setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR,
                        reinterpret_cast<const char *>(&reuseAddr), sizeof(reuseAddr));
 
+            int selectedPort = GetPreferredPort();
+
             sockaddr_in addr{};
             addr.sin_family = AF_INET;
             addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-            addr.sin_port = 0;
+            addr.sin_port = htons(selectedPort);
 
             if (bind(serverSocket, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == SOCKET_ERROR) {
                 closesocket(serverSocket);
@@ -283,53 +285,56 @@ namespace v1_taskbar_manager {
             }
 
             std::cout << "HTTP server running on port " << actualPort << std::endl;
+            Utils::SavePortToWindowsRegistry(actualPort);
             p.set_value(actualPort);
 
             while (!shouldStop.load()) {
-                SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
-                if (clientSocket == INVALID_SOCKET) {
-                    continue;
-                }
+                fd_set fds;
+                FD_ZERO(&fds);
+                FD_SET(serverSocket, &fds);
 
-                // 读取客户端请求
-                char buffer[4096];
-                if (const int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0); bytesReceived > 0) {
-                    buffer[bytesReceived] = '\0';
-                    // 可以在这里解析HTTP请求，现在只是简单读取
-                    std::cout << "Received request from client" << std::endl;
-                }
+                timeval timeout = {0, 100000}; // 100ms超时
 
-                std::ostringstream response;
-                response << "HTTP/1.1 200 OK\r\n";
-                response << "Content-Type: text/html; charset=utf-8\r\n";
-                response << "Content-Length: " << html.size() << "\r\n";
-                response << "Connection: close\r\n";
-                response << "\r\n";
-                response << html;
+                if (int selectResult = select(0, &fds, nullptr, nullptr, &timeout); selectResult > 0 && FD_ISSET(serverSocket, &fds)) {
+                    if (SOCKET clientSocket = accept(serverSocket, nullptr, nullptr); clientSocket != INVALID_SOCKET) {
+                        // 读取客户端请求
+                        char buffer[4096];
+                        if (const int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+                            bytesReceived > 0) {
+                            buffer[bytesReceived] = '\0';
+                        }
 
-                std::string responseStr = response.str();
+                        std::ostringstream response;
+                        response << "HTTP/1.1 200 OK\r\n";
+                        response << "Content-Type: text/html; charset=utf-8\r\n";
+                        response << "Content-Length: " << html.size() << "\r\n";
+                        response << "Connection: close\r\n";
+                        response << "\r\n";
+                        response << html;
 
-                // 发送响应
-                int totalSent = 0;
-                int responseSize = static_cast<int>(responseStr.size());
-                while (totalSent < responseSize) {
-                    int sent = send(clientSocket, responseStr.c_str() + totalSent,
-                                    responseSize - totalSent, 0);
-                    if (sent == SOCKET_ERROR) {
-                        break;
+                        std::string responseStr = response.str();
+
+                        // 发送响应
+                        int totalSent = 0;
+                        int responseSize = static_cast<int>(responseStr.size());
+                        while (totalSent < responseSize && !shouldStop.load()) {
+                            int sent = send(clientSocket, responseStr.c_str() + totalSent,
+                                            responseSize - totalSent, 0);
+                            if (sent == SOCKET_ERROR) {
+                                break;
+                            }
+                            totalSent += sent;
+                        }
+                        shutdown(clientSocket, SD_SEND);
+                        closesocket(clientSocket);
                     }
-                    totalSent += sent;
                 }
-                shutdown(clientSocket, SD_SEND);
-                Sleep(100);
-                closesocket(clientSocket);
             }
             closesocket(serverSocket);
             WSACleanup();
         });
         return portFuture.get();
     }
-
 
     void Application::StopHttpServer() {
         shouldStop.store(true);
@@ -339,6 +344,18 @@ namespace v1_taskbar_manager {
         if (serverThread.joinable()) {
             serverThread.join();
         }
+    }
+
+    int Application::GetPreferredPort() {
+        int savedPort = Utils::ReadPortFromWindowsRegistry();
+        if (savedPort > 0) {
+            if (Utils::IsPortAvailable(savedPort)) {
+                return savedPort;
+            }
+            std::cout << "Previous port " << savedPort << " is not available, will use system assigned port" <<
+                    std::endl;
+        }
+        return 0;
     }
 }
 
