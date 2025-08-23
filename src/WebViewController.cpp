@@ -48,7 +48,7 @@ namespace v1_taskbar_manager {
                             ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
                             [this](HRESULT result,
                                    ICoreWebView2Controller *controller) ->
-                        HRESULT {
+                            HRESULT {
                                 if (controller != nullptr) {
                                     webviewController = controller;
                                     webviewController->get_CoreWebView2(&webview);
@@ -66,7 +66,7 @@ namespace v1_taskbar_manager {
                             }).Get());
                     return S_OK;
                 }).Get()
-        );
+            );
     }
 
     void WebViewController::Resize(const RECT &bounds) const {
@@ -131,7 +131,7 @@ namespace v1_taskbar_manager {
                         nlohmann::json result;
                         result["windows"] = nlohmann::json::array();
 
-                        for (const auto &info: windows) {
+                        for (const auto &info : windows) {
                             nlohmann::json windowJson;
                             if (std::string title = Utils::WStringToString(info.title); !title.empty()) {
                                 windowJson["title"] = title;
@@ -149,7 +149,7 @@ namespace v1_taskbar_manager {
                     }
                     if (cmd == "registerHotkey") {
                         const nlohmann::json hotkey =
-                                args.contains("hotkey") ? args["hotkey"] : nlohmann::json(nullptr);
+                            args.contains("hotkey") ? args["hotkey"] : nlohmann::json(nullptr);
                         const bool ctrl = hotkey.value("ctrl", false);
                         const bool shift = hotkey.value("shift", false);
                         const bool alt = hotkey.value("alt", false);

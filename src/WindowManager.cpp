@@ -98,7 +98,7 @@ namespace v1_taskbar_manager {
      */
     BOOL CALLBACK WindowManager::EnumWindowsProc(HWND hWnd, LPARAM lParam) {
         std::vector<WindowInfo> *windows =
-                reinterpret_cast<std::vector<WindowInfo> *>(lParam);
+            reinterpret_cast<std::vector<WindowInfo> *>(lParam);
 
         // 检查是否应该在任务栏显示
         if (!ShouldShowInTaskbar(hWnd)) {

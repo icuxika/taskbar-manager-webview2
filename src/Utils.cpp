@@ -41,7 +41,7 @@ namespace v1_taskbar_manager {
             0,
             nullptr,
             nullptr
-        );
+            );
         if (narrowLength <= 0) {
             return {};
         }
@@ -57,7 +57,7 @@ namespace v1_taskbar_manager {
             narrowLength,
             nullptr,
             nullptr
-        );
+            );
         return strTo;
     }
 
@@ -78,7 +78,7 @@ namespace v1_taskbar_manager {
             static_cast<int>(str.size()),
             nullptr,
             0
-        );
+            );
 
         if (wideLength <= 0) {
             return {};
@@ -93,7 +93,7 @@ namespace v1_taskbar_manager {
             static_cast<int>(str.size()),
             &wStr[0],
             wideLength
-        );
+            );
 
         return wStr;
     }
@@ -106,7 +106,7 @@ namespace v1_taskbar_manager {
     std::string Utils::HWndToHexString(HWND hWnd) {
         std::ostringstream oss;
         oss << "0x" << std::hex << std::uppercase
-                << reinterpret_cast<uintptr_t>(hWnd);
+            << reinterpret_cast<uintptr_t>(hWnd);
         return oss.str();
     }
 

@@ -109,83 +109,83 @@ namespace v1_taskbar_manager {
      */
     LRESULT Application::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
         switch (message) {
-            case WM_SIZE:
-                if (this->webViewController != nullptr) {
-                    RECT bounds;
-                    GetClientRect(hWnd, &bounds);
-                    this->webViewController->Resize(bounds);
-                };
-                break;
-            case WM_ACTIVATE:
-                if (LOWORD(wParam) == WA_INACTIVE) {
-                    HWND hNewActive = (HWND) lParam;
-                    WCHAR className[256] = {};
-                    if (hNewActive)
-                        GetClassName(hNewActive, className, 255);
+        case WM_SIZE:
+            if (this->webViewController != nullptr) {
+                RECT bounds;
+                GetClientRect(hWnd, &bounds);
+                this->webViewController->Resize(bounds);
+            };
+            break;
+        case WM_ACTIVATE:
+            if (LOWORD(wParam) == WA_INACTIVE) {
+                HWND hNewActive = (HWND)lParam;
+                WCHAR className[256] = {};
+                if (hNewActive)
+                    GetClassName(hNewActive, className, 255);
 
-                    if (hNewActive == nullptr ||
-                        (GetParent(hNewActive) != hWnd &&
-                         wcscmp(className, L"Chrome_WidgetWin_1") != 0)) {
-                        ShowWindow(hWnd, SW_HIDE); // 隐藏到托盘
-                    }
-                }
-                break;
-            case WM_TRAY_ICON: {
-                if (this->trayManager) {
-                    this->trayManager->HandleTrayMessage(wParam, lParam);
+                if (hNewActive == nullptr ||
+                    (GetParent(hNewActive) != hWnd &&
+                     wcscmp(className, L"Chrome_WidgetWin_1") != 0)) {
+                    ShowWindow(hWnd, SW_HIDE); // 隐藏到托盘
                 }
             }
             break;
-            case WM_CLOSE: {
-                const int result = MessageBox(hWnd,
-                                               L"是否退出程序？\n点击“否”将最小化到托盘。",
-                                               L"退出确认",
-                                               MB_ICONQUESTION | MB_YESNO);
-
-                if (result == IDYES) {
-                    PostQuitMessage(0); // 真正退出
-                } else {
-                    ShowWindow(hWnd, SW_HIDE); // 否则只是隐藏窗口
-                }
-                return 0;
+        case WM_TRAY_ICON: {
+            if (this->trayManager) {
+                this->trayManager->HandleTrayMessage(wParam, lParam);
             }
-            case WM_COMMAND:
-                switch (LOWORD(wParam)) {
-                    case ID_TRAY_ABOUT:
-                        MessageBox(hWnd, L"Windows 任务栏窗口管理\nBy 浮木", L"关于", MB_ICONINFORMATION);
-                        break;
-                    case ID_TRAY_EXIT:
-                        PostQuitMessage(0);
-                        break;
-                    case ID_TRAY_ENABLE_HOTKEY:
-                        hotKeyId = globalHotKeyManager->RegisterGlobalHotKey('T', MOD_CONTROL | MOD_ALT, [this]() {
-                            ShowWindow(this->hWnd, SW_RESTORE);
-                            SetForegroundWindow(this->hWnd);
-                        });
-                        if (hotKeyId != 0) {
-                            MessageBox(hWnd, L"已成功注册全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
-                        }
-                        break;
-                    case ID_TRAY_DISABLE_HOTKEY:
-                        if (hotKeyId != 0) {
-                            if (globalHotKeyManager->UnregisterHotKey(hotKeyId)) {
-                                MessageBox(hWnd, L"已成功取消全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
-                            }
-                        }
-                        break;
-                    default: ;
-                }
+        }
+        break;
+        case WM_CLOSE: {
+            const int result = MessageBox(hWnd,
+                                          L"是否退出程序？\n点击“否”将最小化到托盘。",
+                                          L"退出确认",
+                                          MB_ICONQUESTION | MB_YESNO);
+
+            if (result == IDYES) {
+                PostQuitMessage(0); // 真正退出
+            } else {
+                ShowWindow(hWnd, SW_HIDE); // 否则只是隐藏窗口
+            }
+            return 0;
+        }
+        case WM_COMMAND:
+            switch (LOWORD(wParam)) {
+            case ID_TRAY_ABOUT:
+                MessageBox(hWnd, L"Windows 任务栏窗口管理\nBy 浮木", L"关于", MB_ICONINFORMATION);
                 break;
-            case WM_HOTKEY:
-                if (globalHotKeyManager) {
-                    globalHotKeyManager->HandleHotKeyMessage(wParam);
-                }
-                return 0;
-            case WM_DESTROY:
+            case ID_TRAY_EXIT:
                 PostQuitMessage(0);
                 break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
+            case ID_TRAY_ENABLE_HOTKEY:
+                hotKeyId = globalHotKeyManager->RegisterGlobalHotKey('T', MOD_CONTROL | MOD_ALT, [this]() {
+                    ShowWindow(this->hWnd, SW_RESTORE);
+                    SetForegroundWindow(this->hWnd);
+                });
+                if (hotKeyId != 0) {
+                    MessageBox(hWnd, L"已成功注册全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                }
+                break;
+            case ID_TRAY_DISABLE_HOTKEY:
+                if (hotKeyId != 0) {
+                    if (globalHotKeyManager->UnregisterHotKey(hotKeyId)) {
+                        MessageBox(hWnd, L"已成功取消全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                    }
+                }
+                break;
+            default: ;
+            }
+            break;
+        case WM_HOTKEY:
+            if (globalHotKeyManager) {
+                globalHotKeyManager->HandleHotKeyMessage(wParam);
+            }
+            return 0;
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            break;
+        default:
+            return DefWindowProc(hWnd, message, wParam, lParam);
         }
         return 0;
     }
@@ -255,7 +255,7 @@ namespace v1_taskbar_manager {
             nullptr,
             hInstance,
             nullptr
-        );
+            );
     }
 
     void Application::SetupDPI() {

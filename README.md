@@ -108,3 +108,10 @@ void WebViewController::emitEvent(const std::string &name, const nlohmann::json 
 ```
 .\script\BuildInstallerWithWebView2Runtime.ps1
 ```
+
+## Clang-Format 与 Clang-Tidy 配置生成
+
+```
+clang-format.exe --style=LLVM -dump-config > .clang-format
+clang-tidy.exe -dump-config > .clang-tidy
+```

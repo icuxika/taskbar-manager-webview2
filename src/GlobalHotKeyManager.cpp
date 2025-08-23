@@ -29,20 +29,20 @@ namespace v1_taskbar_manager {
         OutputDebugStringA("RegisterHotKey failed: ");
 
         switch (error) {
-            case ERROR_HOTKEY_ALREADY_REGISTERED:
-                OutputDebugStringA("热键已被其他程序注册\n");
-                break;
-            case ERROR_INVALID_PARAMETER:
-                OutputDebugStringA("无效参数\n");
-                break;
-            case ERROR_ACCESS_DENIED:
-                OutputDebugStringA("访问被拒绝\n");
-                break;
-            default:
-                char buffer[256];
-                sprintf_s(buffer, "未知错误，错误代码: %lu\n", error);
-                OutputDebugStringA(buffer);
-                break;
+        case ERROR_HOTKEY_ALREADY_REGISTERED:
+            OutputDebugStringA("热键已被其他程序注册\n");
+            break;
+        case ERROR_INVALID_PARAMETER:
+            OutputDebugStringA("无效参数\n");
+            break;
+        case ERROR_ACCESS_DENIED:
+            OutputDebugStringA("访问被拒绝\n");
+            break;
+        default:
+            char buffer[256];
+            sprintf_s(buffer, "未知错误，错误代码: %lu\n", error);
+            OutputDebugStringA(buffer);
+            break;
         }
 
         return -1; // 注册失败
@@ -62,9 +62,12 @@ namespace v1_taskbar_manager {
                                                   const std::string &key,
                                                   std::function<void()> callback) {
         UINT modifiers = 0;
-        if (ctrl) modifiers |= MOD_CONTROL;
-        if (shift) modifiers |= MOD_SHIFT;
-        if (alt) modifiers |= MOD_ALT;
+        if (ctrl)
+            modifiers |= MOD_CONTROL;
+        if (shift)
+            modifiers |= MOD_SHIFT;
+        if (alt)
+            modifiers |= MOD_ALT;
 
         const UINT vk = GetVirtualKeyCode(key);
         return RegisterGlobalHotKey(vk, modifiers, std::move(callback));
@@ -91,7 +94,7 @@ namespace v1_taskbar_manager {
      * @note 注销所有已注册的全局热键，释放资源
      */
     void GlobalHotKeyManager::UnregisterAll() {
-        for (auto &pair: callbacks) {
+        for (auto &pair : callbacks) {
             ::UnregisterHotKey(hWnd, pair.first);
         }
         callbacks.clear();
@@ -121,16 +124,16 @@ namespace v1_taskbar_manager {
     std::wstring GlobalHotKeyManager::GetLastErrorString() {
         DWORD error = GetLastError();
         switch (error) {
-            case ERROR_HOTKEY_ALREADY_REGISTERED:
-                return L"热键已被其他程序或窗口注册";
-            case ERROR_INVALID_PARAMETER:
-                return L"无效的参数组合";
-            case ERROR_ACCESS_DENIED:
-                return L"访问被拒绝，可能需要管理员权限";
-            case ERROR_HOTKEY_NOT_REGISTERED:
-                return L"热键未注册";
-            default:
-                return L"未知错误，错误代码: " + std::to_wstring(error);
+        case ERROR_HOTKEY_ALREADY_REGISTERED:
+            return L"热键已被其他程序或窗口注册";
+        case ERROR_INVALID_PARAMETER:
+            return L"无效的参数组合";
+        case ERROR_ACCESS_DENIED:
+            return L"访问被拒绝，可能需要管理员权限";
+        case ERROR_HOTKEY_NOT_REGISTERED:
+            return L"热键未注册";
+        default:
+            return L"未知错误，错误代码: " + std::to_wstring(error);
         }
     }
 
@@ -143,7 +146,7 @@ namespace v1_taskbar_manager {
      */
     int GlobalHotKeyManager::RegisterHotKeyWithFallback(const std::vector<std::pair<UINT, UINT> > &keyOptions,
                                                         std::function<void()> callback) {
-        for (const auto &option: keyOptions) {
+        for (const auto &option : keyOptions) {
             int result = RegisterGlobalHotKey(option.first, option.second, callback);
             if (result != -1) {
                 return result; // 成功注册
@@ -190,7 +193,8 @@ namespace v1_taskbar_manager {
             {"LEFT", VK_LEFT}, {"RIGHT", VK_RIGHT}
         };
 
-        if (const auto it = keyMap.find(key); it != keyMap.end()) return it->second;
+        if (const auto it = keyMap.find(key); it != keyMap.end())
+            return it->second;
         return 0;
     }
 }
