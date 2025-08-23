@@ -1,12 +1,10 @@
 #pragma once
 #include <windows.h>
 #include <string>
-#include <wrl.h>
 #include <wil/com.h>
 
 #include "GlobalHotKeyManager.h"
-#include "json.hpp"
-#include "TrayManager.h"
+#include <nlohmann/json.hpp>
 #include "WebView2.h"
 
 using namespace Microsoft::WRL;

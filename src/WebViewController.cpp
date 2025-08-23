@@ -2,8 +2,9 @@
 
 #include <iostream>
 #include <sstream>
+#include <wrl.h>
 
-#include "json.hpp"
+#include <nlohmann/json.hpp>
 #include "Utils.h"
 #include "WindowManager.h"
 #include "Shlwapi.h"

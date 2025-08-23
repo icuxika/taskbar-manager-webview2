@@ -35,8 +35,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR}/packages/M
 target_link_directories(${PROJECT_NAME} PUBLIC ${CMAKE_BINARY_DIR}/packages/Microsoft.Web.WebView2/build/native/x64)
 target_link_libraries(${PROJECT_NAME} PUBLIC WebView2LoaderStatic)
 
-target_include_directories(${PROJECT_NAME} PRIVATE third-party\\nlohmann)
-target_include_directories(${PROJECT_NAME} PRIVATE third-party\\spdlog\\include)
+target_include_directories(${PROJECT_NAME} PRIVATE third-party\\include)
 target_link_libraries(${PROJECT_NAME} PRIVATE Dwmapi Ws2_32 Shlwapi)
 
 install(TARGETS ${PROJECT_NAME}
