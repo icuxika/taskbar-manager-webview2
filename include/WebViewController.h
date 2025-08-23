@@ -12,13 +12,13 @@ using namespace Microsoft::WRL;
 namespace v1_taskbar_manager {
     class WebViewController {
     public:
-        explicit WebViewController(HWND hWnd, std::weak_ptr<GlobalHotKeyManager> globalHotKeyManager, int port);
+        explicit WebViewController(HWND hWnd, const std::weak_ptr<GlobalHotKeyManager> &globalHotKeyManager, int port);
 
         ~WebViewController();
 
         void Initialize();
 
-        void Resize(const RECT &bounds);
+        void Resize(const RECT &bounds) const;
 
     private:
         HWND hWnd;
@@ -27,18 +27,18 @@ namespace v1_taskbar_manager {
         std::weak_ptr<GlobalHotKeyManager> globalHotKeyManager;
         int port;
 
-        void SetupWebViewSettings();
+        void SetupWebViewSettings() const;
 
-        void RegisterMessageHandler();
+        void RegisterMessageHandler() const;
 
-        std::wstring GetUserDataFolder();
+        static std::wstring GetUserDataFolder();
 
-        std::wstring GetWebView2RuntimePath();
+        static std::wstring GetWebView2RuntimePath();
 
-        void LoadApplication();
+        void LoadApplication() const;
 
-        void sendResult(const std::string &id, const nlohmann::json &result);
+        void sendResult(const std::string &id, const nlohmann::json &result) const;
 
-        void emitEvent(const std::string &name, const nlohmann::json &data);
+        void emitEvent(const std::string &name, const nlohmann::json &data) const;
     };
 }

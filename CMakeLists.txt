@@ -19,6 +19,8 @@ set_source_files_properties(
         OBJECT_DEPENDS "${HTML_PATH};${APP_ICON_PATH};${BRIDGE_SCRIPT_PATH}"
 )
 
+add_compile_definitions(UNICODE _UNICODE)
+
 file(GLOB SOURCES "src/*.cpp")
 add_executable(${PROJECT_NAME} WIN32 main.cpp ${SOURCES} ${CMAKE_BINARY_DIR}/WindowsProject.rc)
 target_include_directories(${PROJECT_NAME} PUBLIC include)

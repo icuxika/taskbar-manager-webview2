@@ -23,7 +23,7 @@ namespace v1_taskbar_manager {
 
         bool IsHotKeyAvailable(UINT vkCode, UINT modifiers);
 
-        std::wstring GetLastErrorString();
+        static std::wstring GetLastErrorString();
 
         int RegisterHotKeyWithFallback(const std::vector<std::pair<UINT, UINT> > &keyOptions,
                                        std::function<void()> callback);
@@ -35,6 +35,6 @@ namespace v1_taskbar_manager {
         std::map<int, std::function<void()> > callbacks;
         int nextId;
 
-        UINT GetVirtualKeyCode(const std::string &key);
+        static UINT GetVirtualKeyCode(const std::string &key);
     };
 }

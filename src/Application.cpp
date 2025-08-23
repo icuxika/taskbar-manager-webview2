@@ -52,7 +52,7 @@ namespace v1_taskbar_manager {
         }
 
         if (Utils::IsAlreadyRunning(L"TaskbarManagerWebview2", mutex)) {
-            MessageBoxW(nullptr, L"程序已经在运行", L"错误", MB_OK | MB_ICONERROR);
+            MessageBox(nullptr, L"程序已经在运行", L"错误", MB_OK | MB_ICONERROR);
             return 0;
         }
 
@@ -121,7 +121,7 @@ namespace v1_taskbar_manager {
                     HWND hNewActive = (HWND) lParam;
                     WCHAR className[256] = {};
                     if (hNewActive)
-                        GetClassNameW(hNewActive, className, 255);
+                        GetClassName(hNewActive, className, 255);
 
                     if (hNewActive == nullptr ||
                         (GetParent(hNewActive) != hWnd &&
@@ -137,7 +137,7 @@ namespace v1_taskbar_manager {
             }
             break;
             case WM_CLOSE: {
-                const int result = MessageBoxW(hWnd,
+                const int result = MessageBox(hWnd,
                                                L"是否退出程序？\n点击“否”将最小化到托盘。",
                                                L"退出确认",
                                                MB_ICONQUESTION | MB_YESNO);
@@ -152,7 +152,7 @@ namespace v1_taskbar_manager {
             case WM_COMMAND:
                 switch (LOWORD(wParam)) {
                     case ID_TRAY_ABOUT:
-                        MessageBoxW(hWnd, L"Windows 任务栏窗口管理\nBy 浮木", L"关于", MB_ICONINFORMATION);
+                        MessageBox(hWnd, L"Windows 任务栏窗口管理\nBy 浮木", L"关于", MB_ICONINFORMATION);
                         break;
                     case ID_TRAY_EXIT:
                         PostQuitMessage(0);
@@ -163,13 +163,13 @@ namespace v1_taskbar_manager {
                             SetForegroundWindow(this->hWnd);
                         });
                         if (hotKeyId != 0) {
-                            MessageBoxW(hWnd, L"已成功注册全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                            MessageBox(hWnd, L"已成功注册全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
                         }
                         break;
                     case ID_TRAY_DISABLE_HOTKEY:
                         if (hotKeyId != 0) {
                             if (globalHotKeyManager->UnregisterHotKey(hotKeyId)) {
-                                MessageBoxW(hWnd, L"已成功取消全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                                MessageBox(hWnd, L"已成功取消全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
                             }
                         }
                         break;

@@ -13,7 +13,7 @@ namespace v1_taskbar_manager {
 
         void RemoveTrayIcon();
 
-        LRESULT HandleTrayMessage(WPARAM wParam, LPARAM lParam);
+        LRESULT HandleTrayMessage(WPARAM wParam, LPARAM lParam) const;
 
     private:
         HWND hWnd;

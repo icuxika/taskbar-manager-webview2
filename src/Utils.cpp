@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "Constants.h"
 #include "spdlog/spdlog.h"
 
 namespace v1_taskbar_manager {
@@ -266,18 +267,19 @@ namespace v1_taskbar_manager {
      */
     void Utils::SavePortToWindowsRegistry(int port) {
         HKEY hKey;
-        LONG result = RegCreateKeyExA(HKEY_CURRENT_USER,
-                                      "SOFTWARE\\TaskbarManager\\HttpServer",
-                                      0, nullptr, REG_OPTION_NON_VOLATILE,
-                                      KEY_WRITE, nullptr, &hKey, nullptr);
+        std::wstring regPath(L"SOFTWARE\\");
+        regPath += APP_IDENTIFIER;
+        regPath += L"\\HttpServer";
+        LONG result = RegCreateKeyEx(HKEY_CURRENT_USER, regPath.c_str(), 0, nullptr, REG_OPTION_NON_VOLATILE,KEY_WRITE,
+                                     nullptr, &hKey, nullptr);
         if (result != ERROR_SUCCESS) {
             SPDLOG_ERROR("无法在注册表新建项");
             return;
         }
-        DWORD portValue = static_cast<DWORD>(port);
-        result = RegSetValueExA(hKey, "Port", 0, REG_DWORD,
-                                reinterpret_cast<const BYTE *>(&portValue),
-                                sizeof(DWORD));
+        const auto portValue = static_cast<DWORD>(port);
+        result = RegSetValueEx(hKey, L"Port", 0, REG_DWORD,
+                               reinterpret_cast<const BYTE *>(&portValue),
+                               sizeof(DWORD));
 
         if (result != ERROR_SUCCESS) {
             SPDLOG_ERROR("无法在注册表保存端口号");
@@ -292,9 +294,10 @@ namespace v1_taskbar_manager {
      */
     int Utils::ReadPortFromWindowsRegistry() {
         HKEY hKey;
-        LONG result = RegOpenKeyExA(HKEY_CURRENT_USER,
-                                    "SOFTWARE\\TaskbarManager\\HttpServer",
-                                    0, KEY_READ, &hKey);
+        std::wstring regPath(L"SOFTWARE\\");
+        regPath += APP_IDENTIFIER;
+        regPath += L"\\HttpServer";
+        LONG result = RegOpenKeyEx(HKEY_CURRENT_USER, regPath.c_str(), 0, KEY_READ, &hKey);
 
         if (result != ERROR_SUCCESS) {
             return 0;
@@ -304,8 +307,8 @@ namespace v1_taskbar_manager {
         DWORD dataSize = sizeof(DWORD);
         DWORD dataType = REG_DWORD;
 
-        result = RegQueryValueExA(hKey, "Port", nullptr, &dataType,
-                                  reinterpret_cast<LPBYTE>(&port), &dataSize);
+        result = RegQueryValueEx(hKey, L"Port", nullptr, &dataType,
+                                 reinterpret_cast<LPBYTE>(&port), &dataSize);
 
         RegCloseKey(hKey);
 
@@ -330,7 +333,7 @@ namespace v1_taskbar_manager {
         WSADATA wsaData;
         WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-        SOCKET testSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        const SOCKET testSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (testSocket == INVALID_SOCKET) {
             WSACleanup();
             return false;
@@ -341,7 +344,7 @@ namespace v1_taskbar_manager {
         addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         addr.sin_port = htons(port);
 
-        bool available = (bind(testSocket, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != SOCKET_ERROR);
+        const bool available = (bind(testSocket, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != SOCKET_ERROR);
 
         closesocket(testSocket);
         WSACleanup();

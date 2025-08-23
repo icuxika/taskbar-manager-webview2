@@ -5,6 +5,8 @@
 #include <wrl.h>
 
 #include <nlohmann/json.hpp>
+
+#include "Constants.h"
 #include "Utils.h"
 #include "WindowManager.h"
 #include "Shlwapi.h"
@@ -12,7 +14,7 @@
 #include "spdlog/spdlog.h"
 
 namespace v1_taskbar_manager {
-    WebViewController::WebViewController(HWND hWnd, std::weak_ptr<GlobalHotKeyManager> globalHotKeyManager,
+    WebViewController::WebViewController(HWND hWnd, const std::weak_ptr<GlobalHotKeyManager> &globalHotKeyManager,
                                          int port): hWnd(hWnd),
                                                     globalHotKeyManager(globalHotKeyManager), port(port) {
     }
@@ -35,7 +37,7 @@ namespace v1_taskbar_manager {
         SPDLOG_INFO("WebView2 用户数据文件夹: {}", Utils::WStringToString(userDataFolder));
 
         CreateCoreWebView2EnvironmentWithOptions(
-            runtimePath.empty() ? nullptr : runtimePath.c_str(),
+            runtimePath.c_str(),
             userDataFolder.c_str(),
             nullptr,
             Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
@@ -67,7 +69,7 @@ namespace v1_taskbar_manager {
         );
     }
 
-    void WebViewController::Resize(const RECT &bounds) {
+    void WebViewController::Resize(const RECT &bounds) const {
         if (webviewController != nullptr) {
             webviewController->put_Bounds(bounds);
         }
@@ -77,7 +79,7 @@ namespace v1_taskbar_manager {
      * @brief 设置WebView2的相关设置
      * @note 启用脚本、默认脚本对话框、Web消息、开发者工具等
      */
-    void WebViewController::SetupWebViewSettings() {
+    void WebViewController::SetupWebViewSettings() const {
         if (!webview) {
             return;
         }
@@ -99,7 +101,7 @@ namespace v1_taskbar_manager {
      * @brief 注册WebView2的消息处理函数
      * @note 当WebView2接收到消息时，会调用此函数处理消息
      */
-    void WebViewController::RegisterMessageHandler() {
+    void WebViewController::RegisterMessageHandler() const {
         if (!webview) {
             return;
         }
@@ -181,16 +183,22 @@ namespace v1_taskbar_manager {
                 }).Get(), &token);
     }
 
+    /**
+     * @brief 获取用户数据文件夹路径
+     * @return std::wstring 用户数据文件夹路径
+     * @note 从环境变量中获取用户数据文件夹路径，若不存在则创建
+     */
     std::wstring WebViewController::GetUserDataFolder() {
         PWSTR path = nullptr;
         if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path))) {
             std::wstring folder(path);
             CoTaskMemFree(path);
-            folder += L"\\TaskbarManager";
+            folder += L"\\";
+            folder += APP_IDENTIFIER;
             CreateDirectoryW(folder.c_str(), nullptr);
             return folder;
         }
-        return L".\\WebView2Data";
+        return L"";
     }
 
     /**
@@ -202,12 +210,12 @@ namespace v1_taskbar_manager {
         wchar_t exePath[MAX_PATH];
         GetModuleFileNameW(nullptr, exePath, MAX_PATH);
 
-        std::wstring exeDir = exePath;
-        exeDir = exeDir.substr(0, exeDir.find_last_of(L"\\/"));
+        std::filesystem::path exeDir = exePath;
+        exeDir = exeDir.parent_path();
 
-        std::wstring runtimePath = exeDir + L"\\webview2_runtime";
-        if (PathFileExistsW(runtimePath.c_str())) {
-            return runtimePath;
+        if (const std::filesystem::path runtimePath = exeDir / WEBVIEW2_RUNTIME_PATH;
+            std::filesystem::exists(runtimePath)) {
+            return runtimePath.wstring();
         }
         return L"";
     }
@@ -216,7 +224,7 @@ namespace v1_taskbar_manager {
      * @brief 加载应用程序
      * @note 导航到指定的URL，URL格式为"http://localhost:端口号"
      */
-    void WebViewController::LoadApplication() {
+    void WebViewController::LoadApplication() const {
         if (!webview) {
             return;
         }
@@ -231,7 +239,7 @@ namespace v1_taskbar_manager {
      * @param result 结果数据
      * @note 用于向WebView2发送结果消息，消息格式为JSON字符串
      */
-    void WebViewController::sendResult(const std::string &id, const nlohmann::json &result) {
+    void WebViewController::sendResult(const std::string &id, const nlohmann::json &result) const {
         const nlohmann::json payload = {
             {"id", id},
             {"result", result}
@@ -245,7 +253,7 @@ namespace v1_taskbar_manager {
      * @param data 事件数据
      * @note 用于向WebView2发送事件消息，消息格式为JSON字符串
      */
-    void WebViewController::emitEvent(const std::string &name, const nlohmann::json &data) {
+    void WebViewController::emitEvent(const std::string &name, const nlohmann::json &data) const {
         const nlohmann::json payload = {
             {"event", name},
             {"data", data}
