@@ -72,3 +72,39 @@ void WebViewController::emitEvent(const std::string &name, const nlohmann::json 
     webview->PostWebMessageAsJson(Utils::StringToWString(payload.dump()).c_str());
 }
 ```
+
+## 项目构建脚本
+
+安装包通过[NSIS 3.11](https://nsis.sourceforge.io/Download)制作
+
+### 构建项目（不包含WebView2 Runtime）
+
+不包含`VC_redist.x64.exe`
+
+```
+.\script\BuildAndPack.ps1
+```
+
+### 构建项目（包含WebView2 Runtime）
+
+包含`VC_redist.x64.exe`
+
+```
+.\script\BuildAndPackWithWebView2Runtime.ps1
+```
+
+### 制作安装包（不包含WebView2 Runtime）
+
+不包含`VC_redist.x64.exe`
+
+```
+.\script\BuildInstaller.ps1
+```
+
+### 制作安装包（包含WebView2 Runtime）
+
+包含`VC_redist.x64.exe`
+
+```
+.\script\BuildInstallerWithWebView2Runtime.ps1
+```
