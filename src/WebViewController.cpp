@@ -128,9 +128,9 @@ namespace v1_taskbar_manager {
                     }
                     if (cmd == "getWindows") {
                         const std::vector<WindowInfo> windows = WindowManager::GetTaskbarWindows();
-                        nlohmann::json result;
-                        result["windows"] = nlohmann::json::array();
 
+                        nlohmann::json data;
+                        data["windows"] = nlohmann::json::array();
                         for (const auto &info : windows) {
                             nlohmann::json windowJson;
                             if (std::string title = Utils::WStringToString(info.title); !title.empty()) {
@@ -139,13 +139,14 @@ namespace v1_taskbar_manager {
                                 windowJson["title"] = "(无标题)";
                             }
                             windowJson["handle"] = Utils::HWndToHexString(info.hWnd);
-                            result["windows"].push_back(windowJson);
+                            data["windows"].push_back(windowJson);
                         }
-                        sendResult(id, result);
+                        SendResult(id, 10000, "查询成功", data);
                     }
                     if (cmd == "activateWindow") {
                         const std::string handle = args.value("handle", "");
                         WindowManager::ActivateWindow(handle);
+                        SendResult(id, 10000, "操作成功", nullptr);
                     }
                     if (cmd == "registerHotkey") {
                         const nlohmann::json hotkey =
@@ -161,22 +162,17 @@ namespace v1_taskbar_manager {
                                 SetForegroundWindow(this->hWnd);
                             });
 
-                            nlohmann::json result;
                             if (ret == -1) {
-                                result["message"] = "操作失败";
+                                SendResult(id, 20000, "操作失败", nullptr);
                             } else {
-                                result["message"] = "操作成功";
+                                SendResult(id, 10000, "操作成功", nullptr);
                             }
-                            sendResult(id, result);
                         }
                     }
                     if (cmd == "clearHotkey") {
                         if (auto ghm = globalHotKeyManager.lock()) {
                             ghm->UnregisterAll();
-
-                            nlohmann::json result;
-                            result["message"] = "操作成功";
-                            sendResult(id, result);
+                            SendResult(id, 10000, "操作成功", nullptr);
                         }
                     }
                     return S_OK;
@@ -236,10 +232,18 @@ namespace v1_taskbar_manager {
     /**
      * @brief 发送结果消息
      * @param id 消息ID
-     * @param result 结果数据
+     * @param code 结果状态码
+     * @param msg 结果消息
+     * @param data 结果数据
      * @note 用于向WebView2发送结果消息，消息格式为JSON字符串
      */
-    void WebViewController::sendResult(const std::string &id, const nlohmann::json &result) const {
+    void WebViewController::SendResult(const std::string &id, int code, const std::string &msg,
+                                       const nlohmann::json &data) const {
+        const nlohmann::json result = {
+            {"code", code},
+            {"msg", msg},
+            {"data", data}
+        };
         const nlohmann::json payload = {
             {"id", id},
             {"result", result}
@@ -253,7 +257,7 @@ namespace v1_taskbar_manager {
      * @param data 事件数据
      * @note 用于向WebView2发送事件消息，消息格式为JSON字符串
      */
-    void WebViewController::emitEvent(const std::string &name, const nlohmann::json &data) const {
+    void WebViewController::EmitEvent(const std::string &name, const nlohmann::json &data) const {
         const nlohmann::json payload = {
             {"event", name},
             {"data", data}

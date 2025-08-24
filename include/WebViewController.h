@@ -37,8 +37,8 @@ namespace v1_taskbar_manager {
 
         void LoadApplication() const;
 
-        void sendResult(const std::string &id, const nlohmann::json &result) const;
+        void SendResult(const std::string &id, int code, const std::string &msg, const nlohmann::json &data) const;
 
-        void emitEvent(const std::string &name, const nlohmann::json &data) const;
+        void EmitEvent(const std::string &name, const nlohmann::json &data) const;
     };
 }
