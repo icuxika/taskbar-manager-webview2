@@ -173,10 +173,10 @@ Section "MainSection"
   ${If} $0 != 1
     IfFileExists "$INSTDIR\VC_redist.x64.exe" vcredist_found vcredist_missing
     vcredist_found:
-      DetailPrint "Installing Visual C++ Redistributable..."
+      DetailPrint "正在安装 Microsoft Visual C++ 可再发行程序包"
       ExecWait '"$INSTDIR\VC_redist.x64.exe" /install /quiet /norestart' $1
       Delete "$INSTDIR\VC_redist.x64.exe"
-      DetailPrint "VC++ Redistributable installation completed"
+      DetailPrint "Microsoft Visual C++ 可再发行程序包安装完成"
       Goto vcredist_end
     vcredist_missing:
       MessageBox MB_YESNO|MB_ICONEXCLAMATION "$(vcredistMissing)" /SD IDYES IDYES vcredist_continue
