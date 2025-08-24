@@ -266,6 +266,84 @@
             #window-list li.hover-target .keyboard-hint {
                 opacity: 1;
             }
+
+            /* Toast 通知样式 */
+            .toast-container {
+                position: fixed;
+                top: 100px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 1000;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                max-width: 400px;
+                width: 90%;
+            }
+
+            .toast {
+                background: rgba(0, 0, 0, 0.85);
+                color: white;
+                padding: 16px 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                animation: slideIn 0.3s ease-out;
+                transition: opacity 0.3s ease-out;
+            }
+
+            .toast.error {
+                background: rgba(216, 59, 1, 0.9);
+            }
+
+            .toast.success {
+                background: rgba(16, 124, 16, 0.9);
+            }
+
+            .toast.info {
+                background: rgba(0, 120, 212, 0.9);
+            }
+
+            .toast-content {
+                flex: 1;
+                margin-right: 12px;
+                font-size: 0.95rem;
+            }
+
+            .toast-close {
+                background: none;
+                border: none;
+                color: white;
+                cursor: pointer;
+                padding: 4px;
+                border-radius: 4px;
+                min-width: auto;
+                height: auto;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .toast-close:hover {
+                background: rgba(255, 255, 255, 0.2);
+            }
+
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .toast.hiding {
+                opacity: 0;
+            }
         </style>
     </head>
     <body>
@@ -345,6 +423,9 @@
             <input id="hotkeyInput" placeholder="例如 Ctrl+Alt+T" readonly />
         </div>
 
+        <!-- Toast 通知容器 -->
+        <div id="toast-container" class="toast-container"></div>
+
         <!-- 窗口列表 -->
         <div class="section window-section">
             <div class="window-header">
@@ -364,6 +445,44 @@
             localStorage.getItem("windowPriorities") || "{}"
         );
         let hoveredWindowIndex = -1;
+
+        // 显示 Toast 通知
+        function showToast(message, type = "info", duration = 5000) {
+            const container = document.getElementById("toast-container");
+            const toast = document.createElement("div");
+            toast.className = `toast ${type}`;
+
+            const content = document.createElement("div");
+            content.className = "toast-content";
+            content.textContent = message;
+
+            const closeBtn = document.createElement("button");
+            closeBtn.className = "toast-close";
+            closeBtn.innerHTML = "&times;";
+            closeBtn.title = "关闭";
+            closeBtn.onclick = () => removeToast(toast);
+
+            toast.appendChild(content);
+            toast.appendChild(closeBtn);
+            container.appendChild(toast);
+
+            // 自动移除
+            if (duration > 0) {
+                setTimeout(() => removeToast(toast), duration);
+            }
+
+            return toast;
+        }
+
+        // 移除 Toast
+        function removeToast(toast) {
+            toast.classList.add("hiding");
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }
 
         // 退出程序
         async function quit() {
@@ -510,7 +629,7 @@
                 "Alt + F4",
             ];
             if (forbidden.includes(lastShortcut)) {
-                alert("该快捷键与系统快捷键冲突，无法注册");
+                showToast("该快捷键与系统快捷键冲突，无法注册", "error");
                 return;
             }
 
@@ -525,14 +644,19 @@
             };
 
             if (!info.key) {
-                alert("快捷键无效：缺少主键");
+                showToast("快捷键无效：缺少主键", "error");
                 return;
             }
 
-            localStorage.setItem("lastShortcut", lastShortcut);
-            const result = await Native.invoke("registerHotkey", {
-                hotkey: info,
-            });
+            try {
+                const result = await Native.invoke("registerHotkey", {
+                    hotkey: info,
+                });
+                localStorage.setItem("lastShortcut", lastShortcut);
+                showToast(result.msg, "success");
+            } catch (error) {
+                showToast(error.message, "error");
+            }
         }
 
         // 清除全局快捷键
@@ -542,7 +666,7 @@
             lastShortcut = "";
             localStorage.removeItem("lastShortcut");
             const result = await Native.invoke("clearHotkey", {});
-            alert(result.msg);
+            showToast(result.msg, "info");
         }
 
         // 键盘事件监听

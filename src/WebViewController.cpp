@@ -7,16 +7,16 @@
 #include <nlohmann/json.hpp>
 
 #include "Constants.h"
+#include "ShlObj.h"
+#include "Shlwapi.h"
 #include "Utils.h"
 #include "WindowManager.h"
-#include "Shlwapi.h"
-#include "ShlObj.h"
 #include "spdlog/spdlog.h"
 
 namespace v1_taskbar_manager {
     WebViewController::WebViewController(HWND hWnd, const std::weak_ptr<GlobalHotKeyManager> &globalHotKeyManager,
-                                         int port): hWnd(hWnd),
-                                                    globalHotKeyManager(globalHotKeyManager), port(port) {
+                                         int port)
+        : hWnd(hWnd), globalHotKeyManager(globalHotKeyManager), port(port) {
     }
 
     WebViewController::~WebViewController() {
@@ -36,19 +36,16 @@ namespace v1_taskbar_manager {
         SPDLOG_INFO("WebView2 运行时路径: {}", Utils::WStringToString(runtimePath));
         SPDLOG_INFO("WebView2 用户数据文件夹: {}", Utils::WStringToString(userDataFolder));
 
-        CreateCoreWebView2EnvironmentWithOptions(
+        HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
             runtimePath.c_str(),
             userDataFolder.c_str(),
             nullptr,
-            Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-                [this](HRESULT result, ICoreWebView2Environment *env) -> HRESULT {
-                    // Create a CoreWebView2Controller and get the associated CoreWebView2 whose parent is the main window hWnd
+            Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([this](HRESULT result,
+                ICoreWebView2Environment *env)
+                -> HRESULT {
                     env->CreateCoreWebView2Controller(
-                        hWnd, Callback<
-                            ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                            [this](HRESULT result,
-                                   ICoreWebView2Controller *controller) ->
-                            HRESULT {
+                        hWnd, Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+                            [this](HRESULT result, ICoreWebView2Controller *controller) -> HRESULT {
                                 if (controller != nullptr) {
                                     webviewController = controller;
                                     webviewController->get_CoreWebView2(&webview);
@@ -63,10 +60,34 @@ namespace v1_taskbar_manager {
 
                                 LoadApplication();
                                 return S_OK;
-                            }).Get());
+                            })
+                        .Get());
                     return S_OK;
-                }).Get()
-            );
+                }).Get());
+        if (FAILED(result)) {
+            LPWSTR buffer = nullptr;
+            FormatMessage(
+                FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                nullptr,
+                result,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                reinterpret_cast<LPWSTR>(&buffer),
+                0,
+                nullptr
+                );
+            const std::wstring msg(buffer ? buffer : L"");
+            if (buffer) {
+                LocalFree(buffer);
+            }
+            SPDLOG_ERROR("无法创建 WebView2 环境，HRESULT=0x{:08X}, {}", static_cast<unsigned long>(result),
+                         Utils::WStringToString(msg));
+            if (result == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
+                SPDLOG_ERROR("当前电脑上未安装 WebView2 Runtime 且当前应用程序未自带 WebView2 Runtime 相关文件");
+            }
+            MessageBox(hWnd, L"请检查电脑上是否安装了 WebView2 Runtime 或者重新安装自带 WebView2 Runtime 的应用程序版本。", L"错误",
+                       MB_OK | MB_ICONERROR);
+            PostQuitMessage(0);
+        }
     }
 
     void WebViewController::Resize(const RECT &bounds) const {
@@ -89,7 +110,6 @@ namespace v1_taskbar_manager {
         settings->put_AreDefaultScriptDialogsEnabled(TRUE);
         settings->put_IsWebMessageEnabled(TRUE);
         settings->put_AreDevToolsEnabled(TRUE);
-        // auto logger = spdlog::get("spdlog");
         SPDLOG_INFO("WebView2 DevTools 已启用");
 
         webview->AddScriptToExecuteOnDocumentCreated(
@@ -107,11 +127,8 @@ namespace v1_taskbar_manager {
         }
         EventRegistrationToken token;
         webview->add_WebMessageReceived(
-            Callback<
-                ICoreWebView2WebMessageReceivedEventHandler>(
-                [this](ICoreWebView2 *webview,
-                       ICoreWebView2WebMessageReceivedEventArgs *
-                       receivedEventArgs) -> HRESULT {
+            Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+                [this](ICoreWebView2 *webview, ICoreWebView2WebMessageReceivedEventArgs *receivedEventArgs) -> HRESULT {
                     wil::unique_cotaskmem_string message;
                     receivedEventArgs->get_WebMessageAsJson(&message);
                     nlohmann::json msg = nlohmann::json::parse(Utils::WStringToString(message.get()));
@@ -157,16 +174,21 @@ namespace v1_taskbar_manager {
                         const std::string key = hotkey.value("key", "");
 
                         if (auto ghm = globalHotKeyManager.lock()) {
-                            int ret = ghm->RegisterGlobalHotKey(ctrl, shift, alt, key, [this] {
+                            HotKeyRegistrationResult result = ghm->RegisterGlobalHotKey(ctrl, shift, alt, key, [this] {
                                 ShowWindow(this->hWnd, SW_RESTORE);
                                 SetForegroundWindow(this->hWnd);
                             });
 
-                            if (ret == -1) {
-                                SendResult(id, 20000, "操作失败", nullptr);
-                            } else {
+                            if (result.Success()) {
                                 SendResult(id, 10000, "操作成功", nullptr);
+                            } else {
+                                // 发送详细的错误信息给webview2
+                                nlohmann::json errorData = {{"errorCode", result.errorCode},
+                                                            {"errorMessage", result.errorMessage}};
+                                SendResult(id, 20000, result.errorMessage, errorData);
                             }
+                        } else {
+                            SendResult(id, 20000, "全局热键管理器不可用", nullptr);
                         }
                     }
                     if (cmd == "clearHotkey") {
@@ -176,7 +198,9 @@ namespace v1_taskbar_manager {
                         }
                     }
                     return S_OK;
-                }).Get(), &token);
+                })
+            .Get(),
+            &token);
     }
 
     /**
@@ -239,15 +263,8 @@ namespace v1_taskbar_manager {
      */
     void WebViewController::SendResult(const std::string &id, int code, const std::string &msg,
                                        const nlohmann::json &data) const {
-        const nlohmann::json result = {
-            {"code", code},
-            {"msg", msg},
-            {"data", data}
-        };
-        const nlohmann::json payload = {
-            {"id", id},
-            {"result", result}
-        };
+        const nlohmann::json result = {{"code", code}, {"msg", msg}, {"data", data}};
+        const nlohmann::json payload = {{"id", id}, {"result", result}};
         webview->PostWebMessageAsJson(Utils::StringToWString(payload.dump()).c_str());
     }
 
@@ -258,10 +275,7 @@ namespace v1_taskbar_manager {
      * @note 用于向WebView2发送事件消息，消息格式为JSON字符串
      */
     void WebViewController::EmitEvent(const std::string &name, const nlohmann::json &data) const {
-        const nlohmann::json payload = {
-            {"event", name},
-            {"data", data}
-        };
+        const nlohmann::json payload = {{"event", name}, {"data", data}};
         webview->PostWebMessageAsJson(Utils::StringToWString(payload.dump()).c_str());
     }
-}
+} // namespace v1_taskbar_manager

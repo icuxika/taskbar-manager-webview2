@@ -47,11 +47,12 @@
                 if (
                     msg.result &&
                     msg.result.code &&
-                    !(msg.result.code >= 10000 && msg.result.code < 20000)
+                    msg.result.code >= 10000 &&
+                    msg.result.code < 20000
                 ) {
-                    p.reject(new Error(msg.result.msg || "Native error!"));
-                } else {
                     p.resolve(msg.result);
+                } else {
+                    p.reject(new Error(msg.result.msg || "Native error!"));
                 }
             }
             return;

@@ -1,51 +1,50 @@
 #include "GlobalHotKeyManager.h"
+#include "spdlog/spdlog.h"
 
 namespace v1_taskbar_manager {
-    GlobalHotKeyManager::GlobalHotKeyManager(HWND hWnd): hWnd(hWnd), nextId(1) {
-    }
+    GlobalHotKeyManager::GlobalHotKeyManager(HWND hWnd) : hWnd(hWnd), nextId(1) {}
 
-    GlobalHotKeyManager::~GlobalHotKeyManager() {
-        UnregisterAll();
-    }
+    GlobalHotKeyManager::~GlobalHotKeyManager() { UnregisterAll(); }
 
     /**
      * @brief 注册全局热键
      * @param vkCode 虚拟键码
      * @param modifiers 修饰键
      * @param callback 回调函数
-     * @return int 热键ID
+     * @return HotKeyRegistrationResult 热键注册结果
      * @note 注册全局热键，当热键被按下时，会调用回调函数
      */
-    int GlobalHotKeyManager::RegisterGlobalHotKey(UINT vkCode, UINT modifiers, std::function<void()> callback) {
+    HotKeyRegistrationResult GlobalHotKeyManager::RegisterGlobalHotKey(UINT vkCode, UINT modifiers,
+                                                                       std::function<void()> callback) {
         int id = nextId++;
 
         if (RegisterHotKey(hWnd, id, modifiers, vkCode)) {
             callbacks[id] = callback;
-            return id;
+            return HotKeyRegistrationResult(id);
         }
 
-        // 注册失败，输出错误信息
+        // 注册失败，获取错误信息
         const DWORD error = GetLastError();
-        OutputDebugStringA("RegisterHotKey failed: ");
+        std::string errorMessage;
 
         switch (error) {
         case ERROR_HOTKEY_ALREADY_REGISTERED:
-            OutputDebugStringA("热键已被其他程序注册\n");
+            errorMessage = "热键已被其他程序注册";
             break;
         case ERROR_INVALID_PARAMETER:
-            OutputDebugStringA("无效参数\n");
+            errorMessage = "无效的参数组合";
             break;
         case ERROR_ACCESS_DENIED:
-            OutputDebugStringA("访问被拒绝\n");
+            errorMessage = "访问被拒绝，可能需要管理员权限";
             break;
         default:
-            char buffer[256];
-            sprintf_s(buffer, "未知错误，错误代码: %lu\n", error);
-            OutputDebugStringA(buffer);
+            errorMessage = "未知错误，错误代码";
             break;
         }
 
-        return -1; // 注册失败
+        SPDLOG_ERROR("全局快捷键注册失败: {}", errorMessage);
+
+        return HotKeyRegistrationResult(-1, errorMessage, static_cast<int>(error));
     }
 
     /**
@@ -55,12 +54,12 @@ namespace v1_taskbar_manager {
      * @param alt 是否包含Alt键
      * @param key 热键的键位
      * @param callback 回调函数
-     * @return int 热键ID
+     * @return HotKeyRegistrationResult 热键注册结果
      * @note 注册全局热键，当热键被按下时，会调用回调函数
      */
-    int GlobalHotKeyManager::RegisterGlobalHotKey(const bool ctrl, const bool shift, const bool alt,
-                                                  const std::string &key,
-                                                  std::function<void()> callback) {
+    HotKeyRegistrationResult GlobalHotKeyManager::RegisterGlobalHotKey(const bool ctrl, const bool shift,
+                                                                       const bool alt, const std::string &key,
+                                                                       std::function<void()> callback) {
         UINT modifiers = 0;
         if (ctrl)
             modifiers |= MOD_CONTROL;
@@ -144,12 +143,12 @@ namespace v1_taskbar_manager {
      * @return int 热键ID
      * @note 尝试注册多个热键选项，返回第一个成功注册的热键ID
      */
-    int GlobalHotKeyManager::RegisterHotKeyWithFallback(const std::vector<std::pair<UINT, UINT> > &keyOptions,
+    int GlobalHotKeyManager::RegisterHotKeyWithFallback(const std::vector<std::pair<UINT, UINT>> &keyOptions,
                                                         std::function<void()> callback) {
         for (const auto &option : keyOptions) {
-            int result = RegisterGlobalHotKey(option.first, option.second, callback);
-            if (result != -1) {
-                return result; // 成功注册
+            HotKeyRegistrationResult result = RegisterGlobalHotKey(option.first, option.second, callback);
+            if (result.Success()) {
+                return result.id; // 成功注册
             }
         }
         return -1; // 所有选项都失败
@@ -178,23 +177,19 @@ namespace v1_taskbar_manager {
      */
     UINT GlobalHotKeyManager::GetVirtualKeyCode(const std::string &key) {
         static std::unordered_map<std::string, UINT> keyMap = {
-            {"A", 'A'}, {"B", 'B'}, {"C", 'C'}, {"D", 'D'},
-            {"E", 'E'}, {"F", 'F'}, {"G", 'G'}, {"H", 'H'},
-            {"I", 'I'}, {"J", 'J'}, {"K", 'K'}, {"L", 'L'},
-            {"M", 'M'}, {"N", 'N'}, {"O", 'O'}, {"P", 'P'},
-            {"Q", 'Q'}, {"R", 'R'}, {"S", 'S'}, {"T", 'T'},
-            {"U", 'U'}, {"V", 'V'}, {"W", 'W'}, {"X", 'X'},
-            {"Y", 'Y'}, {"Z", 'Z'},
-            {"F1", VK_F1}, {"F2", VK_F2}, {"F3", VK_F3}, {"F4", VK_F4},
-            {"F5", VK_F5}, {"F6", VK_F6}, {"F7", VK_F7}, {"F8", VK_F8},
-            {"F9", VK_F9}, {"F10", VK_F10}, {"F11", VK_F11}, {"F12", VK_F12},
-            {"ESC", VK_ESCAPE}, {"TAB", VK_TAB}, {"SPACE", VK_SPACE},
-            {"ENTER", VK_RETURN}, {"UP", VK_UP}, {"DOWN", VK_DOWN},
-            {"LEFT", VK_LEFT}, {"RIGHT", VK_RIGHT}
-        };
+            {"A", 'A'},          {"B", 'B'},           {"C", 'C'},      {"D", 'D'},         {"E", 'E'},
+            {"F", 'F'},          {"G", 'G'},           {"H", 'H'},      {"I", 'I'},         {"J", 'J'},
+            {"K", 'K'},          {"L", 'L'},           {"M", 'M'},      {"N", 'N'},         {"O", 'O'},
+            {"P", 'P'},          {"Q", 'Q'},           {"R", 'R'},      {"S", 'S'},         {"T", 'T'},
+            {"U", 'U'},          {"V", 'V'},           {"W", 'W'},      {"X", 'X'},         {"Y", 'Y'},
+            {"Z", 'Z'},          {"F1", VK_F1},        {"F2", VK_F2},   {"F3", VK_F3},      {"F4", VK_F4},
+            {"F5", VK_F5},       {"F6", VK_F6},        {"F7", VK_F7},   {"F8", VK_F8},      {"F9", VK_F9},
+            {"F10", VK_F10},     {"F11", VK_F11},      {"F12", VK_F12}, {"ESC", VK_ESCAPE}, {"TAB", VK_TAB},
+            {"SPACE", VK_SPACE}, {"ENTER", VK_RETURN}, {"UP", VK_UP},   {"DOWN", VK_DOWN},  {"LEFT", VK_LEFT},
+            {"RIGHT", VK_RIGHT}};
 
         if (const auto it = keyMap.find(key); it != keyMap.end())
             return it->second;
         return 0;
     }
-}
+} // namespace v1_taskbar_manager

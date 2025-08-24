@@ -8,9 +8,9 @@
 #include "Constants.h"
 #include "Utils.h"
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LOGGER_TRACE
-#include "spdlog/spdlog.h"
-#include "spdlog/sinks/stdout_color_sinks.h"
 #include "spdlog/sinks/basic_file_sink.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/spdlog.h"
 
 namespace v1_taskbar_manager {
     Application &Application::GetInstance() {
@@ -26,7 +26,7 @@ namespace v1_taskbar_manager {
      * @note 应用程序的入口点，初始化应用程序并运行消息循环
      */
     int Application::Run(HINSTANCE hInstance, int nCmdShow) {
-        // Utils::CreateConsole();
+        Utils::CreateConsole();
 
         // trace,debug 输出到控制台，其他级别会被文本记录
         // 设置日志格式. 参数含义: [日志标识符] [日期] [日志级别] [线程号] [文件名:行号] [数据]
@@ -58,8 +58,7 @@ namespace v1_taskbar_manager {
 
         Initialize(hInstance);
         if (!RegisterWindowClass(hInstance)) {
-            MessageBox(nullptr, TEXT("Failed to register window class!"),
-                       TEXT("Error"), MB_ICONERROR);
+            MessageBox(nullptr, L"Failed to register window class!", L"Error", MB_ICONERROR);
             return 1;
         }
 
@@ -68,8 +67,7 @@ namespace v1_taskbar_manager {
 
         this->hWnd = CreateMainWindow(hInstance, nCmdShow);
         if (!hWnd) {
-            MessageBox(nullptr, TEXT("Failed to create window!"),
-                       TEXT("Error"), MB_ICONERROR);
+            MessageBox(nullptr, L"Failed to create window!", L"Error", MB_ICONERROR);
             return 1;
         }
 
@@ -84,8 +82,7 @@ namespace v1_taskbar_manager {
         trayManager->AddTrayIcon();
         webViewController->Initialize();
 
-        ShowWindow(hWnd,
-                   nCmdShow);
+        ShowWindow(hWnd, nCmdShow);
         UpdateWindow(hWnd);
 
         MSG msg;
@@ -124,23 +121,20 @@ namespace v1_taskbar_manager {
                     GetClassName(hNewActive, className, 255);
 
                 if (hNewActive == nullptr ||
-                    (GetParent(hNewActive) != hWnd &&
-                     wcscmp(className, L"Chrome_WidgetWin_1") != 0)) {
+                    (GetParent(hNewActive) != hWnd && wcscmp(className, L"Chrome_WidgetWin_1") != 0)) {
                     ShowWindow(hWnd, SW_HIDE); // 隐藏到托盘
                 }
             }
             break;
         case WM_TRAY_ICON: {
             if (this->trayManager) {
-                this->trayManager->HandleTrayMessage(wParam, lParam);
+                return this->trayManager->HandleTrayMessage(wParam, lParam);
             }
         }
         break;
         case WM_CLOSE: {
-            const int result = MessageBox(hWnd,
-                                          L"是否退出程序？\n点击“否”将最小化到托盘。",
-                                          L"退出确认",
-                                          MB_ICONQUESTION | MB_YESNO);
+            const int result =
+                MessageBox(hWnd, L"是否退出程序？\n点击“否”将最小化到托盘。", L"退出确认", MB_ICONQUESTION | MB_YESNO);
 
             if (result == IDYES) {
                 PostQuitMessage(0); // 真正退出
@@ -157,15 +151,21 @@ namespace v1_taskbar_manager {
             case ID_TRAY_EXIT:
                 PostQuitMessage(0);
                 break;
-            case ID_TRAY_ENABLE_HOTKEY:
-                hotKeyId = globalHotKeyManager->RegisterGlobalHotKey('T', MOD_CONTROL | MOD_ALT, [this]() {
-                    ShowWindow(this->hWnd, SW_RESTORE);
-                    SetForegroundWindow(this->hWnd);
-                });
-                if (hotKeyId != 0) {
+            case ID_TRAY_ENABLE_HOTKEY: {
+                HotKeyRegistrationResult result =
+                    globalHotKeyManager->RegisterGlobalHotKey('T', MOD_CONTROL | MOD_ALT, [this]() {
+                        ShowWindow(this->hWnd, SW_RESTORE);
+                        SetForegroundWindow(this->hWnd);
+                    });
+                if (result.Success()) {
+                    hotKeyId = result.id;
                     MessageBox(hWnd, L"已成功注册全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                } else {
+                    MessageBox(hWnd, Utils::StringToWString(result.errorMessage).c_str(), L"注册热键失败",
+                               MB_ICONERROR);
                 }
                 break;
+            }
             case ID_TRAY_DISABLE_HOTKEY:
                 if (hotKeyId != 0) {
                     if (globalHotKeyManager->UnregisterHotKey(hotKeyId)) {
@@ -244,23 +244,11 @@ namespace v1_taskbar_manager {
         SPDLOG_INFO("Windows 逻辑像素: {}x{}", logicalWidth, logicalHeight);
         SPDLOG_INFO("程序窗口位置和大小: {}x{} @ {}x{}", windowWidth, windowHeight, x, y);
 
-        return CreateWindowEx(
-            WS_EX_TOOLWINDOW,
-            szWindowClass,
-            szTitle,
-            WS_POPUP | WS_VISIBLE,
-            x, y,
-            windowWidth, windowHeight,
-            nullptr,
-            nullptr,
-            hInstance,
-            nullptr
-            );
+        return CreateWindowEx(WS_EX_TOOLWINDOW, szWindowClass, szTitle, WS_POPUP | WS_VISIBLE, x, y, windowWidth,
+                              windowHeight, nullptr, nullptr, hInstance, nullptr);
     }
 
-    void Application::SetupDPI() {
-        SetProcessDPIAware();
-    }
+    void Application::SetupDPI() { SetProcessDPIAware(); }
 
     void Application::Cleanup() {
         webViewController.reset();
@@ -270,6 +258,7 @@ namespace v1_taskbar_manager {
             CloseHandle(mutex);
         }
         StopHttpServer();
+        SPDLOG_INFO("应用程序已正常退出");
         spdlog::shutdown();
     }
 
@@ -301,8 +290,8 @@ namespace v1_taskbar_manager {
             }
 
             constexpr int reuseAddr = 1;
-            setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR,
-                       reinterpret_cast<const char *>(&reuseAddr), sizeof(reuseAddr));
+            setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&reuseAddr),
+                       sizeof(reuseAddr));
 
             int selectedPort = GetPreferredPort();
 
@@ -370,8 +359,7 @@ namespace v1_taskbar_manager {
                         int totalSent = 0;
                         int responseSize = static_cast<int>(responseStr.size());
                         while (totalSent < responseSize && !shouldStop.load()) {
-                            int sent = send(clientSocket, responseStr.c_str() + totalSent,
-                                            responseSize - totalSent, 0);
+                            int sent = send(clientSocket, responseStr.c_str() + totalSent, responseSize - totalSent, 0);
                             if (sent == SOCKET_ERROR) {
                                 break;
                             }
@@ -413,7 +401,7 @@ namespace v1_taskbar_manager {
         }
         return 0;
     }
-}
+} // namespace v1_taskbar_manager
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     return v1_taskbar_manager::Application::GetInstance().WindowProc(hWnd, message, wParam, lParam);
