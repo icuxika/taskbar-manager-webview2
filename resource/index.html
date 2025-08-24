@@ -653,7 +653,7 @@
                     hotkey: info,
                 });
                 localStorage.setItem("lastShortcut", lastShortcut);
-                showToast(result.msg, "success");
+                showToast("全局快捷键已注册成功！", "success");
             } catch (error) {
                 showToast(error.message, "error");
             }
