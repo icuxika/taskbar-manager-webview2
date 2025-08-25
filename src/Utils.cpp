@@ -148,6 +148,19 @@ namespace v1_taskbar_manager {
      * @note 使用"runas"动词通过ShellExecuteExW实现权限提升
      */
     void Utils::RelaunchAsAdmin() {
+        int nArgs;
+        LPWSTR *szArgList = CommandLineToArgvW(GetCommandLineW(), &nArgs);
+        if (szArgList == nullptr) {
+            return;
+        }
+        std::wstring parameters;
+        if (nArgs > 1) {
+            for (int i = 1; i < nArgs; i++) {
+                parameters += szArgList[i];
+            }
+        }
+        LocalFree(szArgList);
+
         wchar_t exePath[MAX_PATH];
         GetModuleFileNameW(nullptr, exePath, MAX_PATH);
 
@@ -156,7 +169,7 @@ namespace v1_taskbar_manager {
         sei.hwnd = nullptr;
         sei.lpVerb = L"runas";
         sei.lpFile = exePath;
-        sei.lpParameters = L"";
+        sei.lpParameters = parameters.c_str();
         sei.nShow = SW_NORMAL;
 
         if (!ShellExecuteExW(&sei)) {

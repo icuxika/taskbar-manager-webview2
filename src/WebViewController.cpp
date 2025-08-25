@@ -134,69 +134,16 @@ namespace v1_taskbar_manager {
                     nlohmann::json msg = nlohmann::json::parse(Utils::WStringToString(message.get()));
                     const std::string id = msg.value("id", "");
                     const std::string cmd = msg.value("cmd", "");
-
-                    auto logger = spdlog::get("spdlog");
-                    logger->log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION}, spdlog::level::trace,
-                                "收到invoke: id[{}], cmd[{}]", id, cmd);
-
                     const nlohmann::json args = msg.contains("args") ? msg["args"] : nlohmann::json(nullptr);
-                    if (cmd == "quit") {
-                        PostQuitMessage(0);
-                    }
-                    if (cmd == "getWindows") {
-                        const std::vector<WindowInfo> windows = WindowManager::GetTaskbarWindows();
 
-                        nlohmann::json data;
-                        data["windows"] = nlohmann::json::array();
-                        for (const auto &info : windows) {
-                            nlohmann::json windowJson;
-                            if (std::string title = Utils::WStringToString(info.title); !title.empty()) {
-                                windowJson["title"] = title;
-                            } else {
-                                windowJson["title"] = "(无标题)";
-                            }
-                            windowJson["handle"] = Utils::HWndToHexString(info.hWnd);
-                            data["windows"].push_back(windowJson);
-                        }
-                        SendResult(id, 10000, "查询成功", data);
-                    }
-                    if (cmd == "activateWindow") {
-                        const std::string handle = args.value("handle", "");
-                        WindowManager::ActivateWindow(handle);
-                        SendResult(id, 10000, "操作成功", nullptr);
-                    }
-                    if (cmd == "registerHotkey") {
-                        const nlohmann::json hotkey =
-                            args.contains("hotkey") ? args["hotkey"] : nlohmann::json(nullptr);
-                        const bool ctrl = hotkey.value("ctrl", false);
-                        const bool shift = hotkey.value("shift", false);
-                        const bool alt = hotkey.value("alt", false);
-                        const std::string key = hotkey.value("key", "");
+                    const auto logger = spdlog::get("spdlog");
+                    logger->log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION}, spdlog::level::trace,
+                                "收到invoke: {}", msg.dump(2));
 
-                        if (auto ghm = globalHotKeyManager.lock()) {
-                            HotKeyRegistrationResult result = ghm->RegisterGlobalHotKey(ctrl, shift, alt, key, [this] {
-                                ShowWindow(this->hWnd, SW_RESTORE);
-                                SetForegroundWindow(this->hWnd);
-                            });
+                    ProcessMessage(id, cmd, args, [webview](const nlohmann::json &response) {
+                        webview->PostWebMessageAsJson(Utils::StringToWString(response.dump()).c_str());
+                    });
 
-                            if (result.Success()) {
-                                SendResult(id, 10000, "操作成功", nullptr);
-                            } else {
-                                // 发送详细的错误信息给webview2
-                                nlohmann::json errorData = {{"errorCode", result.errorCode},
-                                                            {"errorMessage", result.errorMessage}};
-                                SendResult(id, 20000, result.errorMessage, errorData);
-                            }
-                        } else {
-                            SendResult(id, 20000, "全局热键管理器不可用", nullptr);
-                        }
-                    }
-                    if (cmd == "clearHotkey") {
-                        if (auto ghm = globalHotKeyManager.lock()) {
-                            ghm->UnregisterAll();
-                            SendResult(id, 10000, "操作成功", nullptr);
-                        }
-                    }
                     return S_OK;
                 })
             .Get(),
@@ -254,28 +201,100 @@ namespace v1_taskbar_manager {
     }
 
     /**
-     * @brief 发送结果消息
+     * @brief 处理消息
      * @param id 消息ID
-     * @param code 结果状态码
-     * @param msg 结果消息
-     * @param data 结果数据
-     * @note 用于向WebView2发送结果消息，消息格式为JSON字符串
+     * @param cmd 消息命令
+     * @param args 消息参数
+     * @param callback 消息回调函数
+     * @note 用于处理WebView2发送的消息，消息格式为JSON字符串
      */
-    void WebViewController::SendResult(const std::string &id, int code, const std::string &msg,
-                                       const nlohmann::json &data) const {
-        const nlohmann::json result = {{"code", code}, {"msg", msg}, {"data", data}};
-        const nlohmann::json payload = {{"id", id}, {"result", result}};
-        webview->PostWebMessageAsJson(Utils::StringToWString(payload.dump()).c_str());
+    void WebViewController::ProcessMessage(const std::string &id, const std::string &cmd, const nlohmann::json &args,
+                                           const std::function<void(const nlohmann::json &)> &callback) const {
+        if (cmd == "quit") {
+            callback(ResultResponse(id, 10000, "操作成功", nullptr));
+            PostQuitMessage(0);
+        }
+        if (cmd == "getWindows") {
+            const std::vector<WindowInfo> windows = WindowManager::GetTaskbarWindows();
+
+            nlohmann::json data;
+            data["windows"] = nlohmann::json::array();
+            for (const auto &info : windows) {
+                nlohmann::json windowJson;
+                if (std::string title = Utils::WStringToString(info.title); !title.empty()) {
+                    windowJson["title"] = title;
+                } else {
+                    windowJson["title"] = "(无标题)";
+                }
+                windowJson["handle"] = Utils::HWndToHexString(info.hWnd);
+                data["windows"].push_back(windowJson);
+            }
+            callback(ResultResponse(id, 10000, "查询成功", data));
+        }
+        if (cmd == "activateWindow") {
+            const std::string handle = args.value("handle", "");
+            WindowManager::ActivateWindow(handle);
+            callback(ResultResponse(id, 10000, "操作成功", nullptr));
+        }
+        if (cmd == "registerHotkey") {
+            const nlohmann::json hotkey =
+                args.contains("hotkey") ? args["hotkey"] : nlohmann::json(nullptr);
+            const bool ctrl = hotkey.value("ctrl", false);
+            const bool shift = hotkey.value("shift", false);
+            const bool alt = hotkey.value("alt", false);
+            const std::string key = hotkey.value("key", "");
+
+            if (auto ghm = globalHotKeyManager.lock()) {
+                HotKeyRegistrationResult result = ghm->RegisterGlobalHotKey(ctrl, shift, alt, key, [this] {
+                    ShowWindow(this->hWnd, SW_RESTORE);
+                    SetForegroundWindow(this->hWnd);
+                });
+
+                if (result.Success()) {
+                    callback(ResultResponse(id, 10000, "操作成功", nullptr));
+                } else {
+                    // 发送详细的错误信息给webview2
+                    nlohmann::json errorData = {{"errorCode", result.errorCode},
+                                                {"errorMessage", result.errorMessage}};
+                    callback(ResultResponse(id, 20000, result.errorMessage, errorData));
+                }
+            } else {
+                callback(ResultResponse(id, 20000, "全局热键管理器不可用", nullptr));
+            }
+        }
+        if (cmd == "clearHotkey") {
+            if (auto ghm = globalHotKeyManager.lock()) {
+                ghm->UnregisterAll();
+                callback(ResultResponse(id, 10000, "操作成功", nullptr));
+            }
+        }
     }
 
     /**
-     * @brief 发送事件消息
+     * @brief 构建结果响应
+     * @param id 消息ID
+     * @param code 响应码
+     * @param msg 响应消息
+     * @param data 响应数据
+     * @return nlohmann::json 结果响应JSON对象
+     * @note 用于构建WebView2发送的结果响应消息，消息格式为JSON字符串
+     */
+    nlohmann::json WebViewController::ResultResponse(const std::string &id, int code, const std::string &msg,
+                                                     const nlohmann::json &data) const {
+        const nlohmann::json result = {{"code", code}, {"msg", msg}, {"data", data}};
+        const nlohmann::json payload = {{"id", id}, {"result", result}};
+        return payload;
+    }
+
+    /**
+     * @brief 构建事件响应
      * @param name 事件名称
      * @param data 事件数据
-     * @note 用于向WebView2发送事件消息，消息格式为JSON字符串
+     * @return nlohmann::json 事件响应JSON对象
+     * @note 用于构建WebView2发送的事件响应消息，消息格式为JSON字符串
      */
-    void WebViewController::EmitEvent(const std::string &name, const nlohmann::json &data) const {
+    nlohmann::json WebViewController::EmitResponse(const std::string &name, const nlohmann::json &data) const {
         const nlohmann::json payload = {{"event", name}, {"data", data}};
-        webview->PostWebMessageAsJson(Utils::StringToWString(payload.dump()).c_str());
+        return payload;
     }
 } // namespace v1_taskbar_manager

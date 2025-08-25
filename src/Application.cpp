@@ -26,7 +26,22 @@ namespace v1_taskbar_manager {
      * @note 应用程序的入口点，初始化应用程序并运行消息循环
      */
     int Application::Run(HINSTANCE hInstance, int nCmdShow) {
-        // Utils::CreateConsole();
+        int nArgs;
+        LPWSTR *szArgList = CommandLineToArgvW(GetCommandLineW(), &nArgs);
+        if (szArgList == nullptr) {
+            return -1;
+        }
+        std::wstring parameters;
+        if (nArgs > 1) {
+            for (int i = 1; i < nArgs; i++) {
+                parameters += szArgList[i];
+            }
+        }
+        LocalFree(szArgList);
+        std::wcout << parameters << std::endl;
+        if (parameters.find(L"--console") != std::wstring::npos) {
+            Utils::CreateConsole();
+        }
 
         // trace,debug 输出到控制台，其他级别会被文本记录
         // 设置日志格式. 参数含义: [日志标识符] [日期] [日志级别] [线程号] [文件名:行号] [数据]
