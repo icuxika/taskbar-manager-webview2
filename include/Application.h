@@ -28,6 +28,8 @@ namespace v1_taskbar_manager {
 
         HWND CreateMainWindow(HINSTANCE hInstance, int nCmdShow);
 
+        void SetupSpdlog();
+
         void SetupDPI();
 
         void Cleanup();

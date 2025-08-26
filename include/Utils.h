@@ -32,5 +32,7 @@ namespace v1_taskbar_manager {
         static int ReadPortFromWindowsRegistry();
 
         static bool IsPortAvailable(int port);
+
+        static std::wstring GetLocalAppDataFolder();
     };
 }

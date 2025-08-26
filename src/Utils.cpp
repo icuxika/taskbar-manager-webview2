@@ -4,6 +4,7 @@
 #include <ios>
 #include <iostream>
 #include <sstream>
+#include <ShlObj.h>
 
 #include "Constants.h"
 #include "spdlog/spdlog.h"
@@ -162,7 +163,7 @@ namespace v1_taskbar_manager {
         LocalFree(szArgList);
 
         wchar_t exePath[MAX_PATH];
-        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+        GetModuleFileName(nullptr, exePath, MAX_PATH);
 
         SHELLEXECUTEINFOW sei = {sizeof(sei)};
         sei.fMask = SEE_MASK_DEFAULT;
@@ -172,7 +173,7 @@ namespace v1_taskbar_manager {
         sei.lpParameters = parameters.c_str();
         sei.nShow = SW_NORMAL;
 
-        if (!ShellExecuteExW(&sei)) {
+        if (!ShellExecuteEx(&sei)) {
             if (const DWORD err = GetLastError(); err == ERROR_CANCELLED) {
                 SPDLOG_TRACE("用户取消了提升权限");
             }
@@ -194,7 +195,7 @@ namespace v1_taskbar_manager {
         wchar_t processName[MAX_PATH];
         DWORD size = MAX_PATH;
 
-        if (QueryFullProcessImageNameW(hProcess, 0, processName, &size)) {
+        if (QueryFullProcessImageName(hProcess, 0, processName, &size)) {
             std::wstring fullPath(processName);
             size_t pos = fullPath.find_last_of(L'\\');
             if (pos != std::wstring::npos) {
@@ -214,25 +215,19 @@ namespace v1_taskbar_manager {
     void Utils::CreateConsole() {
         // 分配控制台
         AllocConsole();
-
         // 切换到 UTF-8
         SetConsoleOutputCP(CP_UTF8);
-
         // 重定向标准输出到控制台
         FILE *pCout;
         freopen_s(&pCout, "CONOUT$", "w", stdout);
-
         // 重定向标准输入到控制台
         FILE *pCin;
         freopen_s(&pCin, "CONIN$", "r", stdin);
-
         // 重定向标准错误到控制台
         FILE *pCerr;
         freopen_s(&pCerr, "CONOUT$", "w", stderr);
-
         // 设置控制台窗口标题
-        SetConsoleTitleW(L"WebView2 Debug Console");
-        SPDLOG_TRACE("=== 控制台 ===");
+        SetConsoleTitle(L"WebView2 Debug Console");
     }
 
     /**
@@ -243,7 +238,7 @@ namespace v1_taskbar_manager {
      */
     bool Utils::IsAlreadyRunning(const std::wstring &mutexName, HANDLE &mutex) {
         const std::wstring globalMutexName = L"Global\\" + mutexName;
-        mutex = CreateMutexW(nullptr, false, globalMutexName.c_str());
+        mutex = CreateMutex(nullptr, false, globalMutexName.c_str());
         if (mutex != nullptr) {
             if (GetLastError() == ERROR_ALREADY_EXISTS) {
                 CloseHandle(mutex);
@@ -363,5 +358,23 @@ namespace v1_taskbar_manager {
         WSACleanup();
 
         return available;
+    }
+
+    /**
+     * @brief 获取本地应用数据文件夹路径
+     * @return 本地应用数据文件夹路径
+     * @note 若获取失败则返回空字符串
+     */
+    std::wstring Utils::GetLocalAppDataFolder() {
+        PWSTR path = nullptr;
+        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path))) {
+            std::wstring folder(path);
+            CoTaskMemFree(path);
+            folder += L"\\";
+            folder += APP_IDENTIFIER;
+            CreateDirectory(folder.c_str(), nullptr);
+            return folder;
+        }
+        return L"";
     }
 }

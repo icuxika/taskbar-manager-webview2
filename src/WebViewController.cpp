@@ -32,7 +32,7 @@ namespace v1_taskbar_manager {
      */
     void WebViewController::Initialize() {
         const std::wstring runtimePath = GetWebView2RuntimePath();
-        const std::wstring userDataFolder = GetUserDataFolder();
+        const std::wstring userDataFolder = Utils::GetLocalAppDataFolder();
         SPDLOG_INFO("WebView2 运行时路径: {}", Utils::WStringToString(runtimePath));
         SPDLOG_INFO("WebView2 用户数据文件夹: {}", Utils::WStringToString(userDataFolder));
 
@@ -148,24 +148,6 @@ namespace v1_taskbar_manager {
                 })
             .Get(),
             &token);
-    }
-
-    /**
-     * @brief 获取用户数据文件夹路径
-     * @return std::wstring 用户数据文件夹路径
-     * @note 从环境变量中获取用户数据文件夹路径，若不存在则创建
-     */
-    std::wstring WebViewController::GetUserDataFolder() {
-        PWSTR path = nullptr;
-        if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path))) {
-            std::wstring folder(path);
-            CoTaskMemFree(path);
-            folder += L"\\";
-            folder += APP_IDENTIFIER;
-            CreateDirectoryW(folder.c_str(), nullptr);
-            return folder;
-        }
-        return L"";
     }
 
     /**

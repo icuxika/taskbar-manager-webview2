@@ -43,21 +43,7 @@ namespace v1_taskbar_manager {
             Utils::CreateConsole();
         }
 
-        // trace,debug 输出到控制台，其他级别会被文本记录
-        // 设置日志格式. 参数含义: [日志标识符] [日期] [日志级别] [线程号] [文件名:行号] [数据]
-        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        console_sink->set_level(spdlog::level::trace);
-        console_sink->set_pattern("[%n] [%Y-%m-%d %H:%M:%S.%e] [%^---%L---%$] [%t] [%s:%#] %v");
-        auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/log.txt", true);
-        file_sink->set_level(spdlog::level::info);
-        file_sink->set_pattern("[%n] [%Y-%m-%d %H:%M:%S.%e] [%^---%L---%$] [%t] [%s:%#] %v");
-
-        std::vector<spdlog::sink_ptr> sinks{console_sink, file_sink};
-        const auto logger = std::make_shared<spdlog::logger>("spdlog", sinks.begin(), sinks.end());
-        logger->set_level(spdlog::level::trace);
-        spdlog::set_level(spdlog::level::trace);
-        spdlog::set_default_logger(logger);
-        SPDLOG_INFO("应用程序启动");
+        SetupSpdlog();
 
         SetupDPI();
 
@@ -68,6 +54,10 @@ namespace v1_taskbar_manager {
 
         if (Utils::IsAlreadyRunning(L"TaskbarManagerWebview2", mutex)) {
             MessageBox(nullptr, L"程序已经在运行", L"错误", MB_OK | MB_ICONERROR);
+            if (HWND hWnd = FindWindow(szWindowClass, szTitle)) {
+                ShowWindow(hWnd, SW_RESTORE);
+                SetForegroundWindow(hWnd);
+            }
             return 0;
         }
 
@@ -261,6 +251,35 @@ namespace v1_taskbar_manager {
 
         return CreateWindowEx(WS_EX_TOOLWINDOW, szWindowClass, szTitle, WS_POPUP | WS_VISIBLE, x, y, windowWidth,
                               windowHeight, nullptr, nullptr, hInstance, nullptr);
+    }
+
+    /**
+     * @brief 设置日志记录
+     * @note 设置日志记录，将日志输出到控制台和文件
+     */
+    void Application::SetupSpdlog() {
+        const std::wstring localAppData = Utils::GetLocalAppDataFolder();
+        const std::wstring logsDir = localAppData + L"\\logs";
+        CreateDirectory(logsDir.c_str(), nullptr);
+        const std::wstring logFile = logsDir + L"\\log.txt";
+
+        // trace,debug 输出到控制台，其他级别会被文本记录
+        // 设置日志格式. 参数含义: [日志标识符] [日期] [日志级别] [线程号] [文件名:行号] [数据]
+        const auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        console_sink->set_level(spdlog::level::trace);
+        console_sink->set_pattern("[%n] [%Y-%m-%d %H:%M:%S.%e] [%^---%L---%$] [%t] [%s:%#] %v");
+        const auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(
+            Utils::WStringToString(logFile), true);
+        file_sink->set_level(spdlog::level::info);
+        file_sink->set_pattern("[%n] [%Y-%m-%d %H:%M:%S.%e] [%^---%L---%$] [%t] [%s:%#] %v");
+
+        std::vector<spdlog::sink_ptr> sinks{console_sink, file_sink};
+        const auto logger = std::make_shared<spdlog::logger>("spdlog", sinks.begin(), sinks.end());
+        logger->set_level(spdlog::level::trace);
+        spdlog::set_level(spdlog::level::trace);
+        spdlog::set_default_logger(logger);
+        SPDLOG_INFO("应用程序启动");
+        SPDLOG_INFO("日志存储位置: {}", Utils::WStringToString(logFile));
     }
 
     void Application::SetupDPI() { SetProcessDPIAware(); }

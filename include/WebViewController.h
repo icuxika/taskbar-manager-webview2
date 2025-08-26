@@ -31,8 +31,6 @@ namespace v1_taskbar_manager {
 
         void RegisterMessageHandler() const;
 
-        static std::wstring GetUserDataFolder();
-
         static std::wstring GetWebView2RuntimePath();
 
         void LoadApplication() const;
