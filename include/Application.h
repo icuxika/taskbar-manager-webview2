@@ -49,7 +49,6 @@ namespace v1_taskbar_manager {
         HANDLE mutex = nullptr;
         std::thread serverThread;
         std::atomic<bool> shouldStop{false};
-        SOCKET serverSocket = INVALID_SOCKET;
     };
 }
 

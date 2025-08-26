@@ -315,9 +315,21 @@ namespace v1_taskbar_manager {
         auto portFuture = portPromise.get_future();
 
         serverThread = std::thread([html, p = std::move(portPromise), this]() mutable {
+            // 定义智能指针删除器
+            auto socketDeleter = [](const SOCKET *sock) {
+                if (*sock != INVALID_SOCKET) {
+                    closesocket(*sock);
+                }
+                WSACleanup();
+                delete sock;
+            };
+
+            // 创建智能指针管理套接字
+            std::unique_ptr<SOCKET, decltype(socketDeleter)> serverSocketPtr(new SOCKET(INVALID_SOCKET), socketDeleter);
+            SOCKET &serverSocket = *serverSocketPtr;
+
             WSADATA wsaData;
-            const int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
-            if (result != 0) {
+            if (const int result = WSAStartup(MAKEWORD(2, 2), &wsaData); result != 0) {
                 p.set_value(-1);
                 return;
             }
@@ -410,20 +422,18 @@ namespace v1_taskbar_manager {
                     }
                 }
             }
-            closesocket(serverSocket);
-            WSACleanup();
         });
         return portFuture.get();
     }
 
     void Application::StopHttpServer() {
+        SPDLOG_INFO("正在停止 Socket 服务");
         shouldStop.store(true);
-        if (serverSocket != INVALID_SOCKET) {
-            closesocket(serverSocket);
-        }
         if (serverThread.joinable()) {
+            SPDLOG_INFO("等待 Socket 服务线程结束");
             serverThread.join();
         }
+        SPDLOG_INFO("Socket 服务已停止");
     }
 
     /**
