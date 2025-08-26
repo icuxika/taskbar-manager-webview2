@@ -49,10 +49,11 @@ namespace v1_taskbar_manager {
         } else if (lParam == WM_RBUTTONUP) {
             // 右键点击弹出菜单
             HMENU hMenu = CreatePopupMenu();
-            AppendMenu(hMenu, MF_STRING, ID_TRAY_ABOUT, L"关于");
-            AppendMenu(hMenu, MF_STRING, ID_TRAY_EXIT, L"退出");
+            AppendMenu(hMenu, MF_STRING, ID_TRAY_LOCAL_APP_DATA, L"打开用户数据文件夹");
             AppendMenu(hMenu, MF_STRING, ID_TRAY_ENABLE_HOTKEY, L"注册全局快捷键 Ctrl+Alt+T");
             AppendMenu(hMenu, MF_STRING, ID_TRAY_DISABLE_HOTKEY, L"取消全局快捷键 Ctrl+Alt+T");
+            AppendMenu(hMenu, MF_STRING, ID_TRAY_ABOUT, L"关于");
+            AppendMenu(hMenu, MF_STRING, ID_TRAY_EXIT, L"退出");
 
             POINT pt;
             GetCursorPos(&pt);

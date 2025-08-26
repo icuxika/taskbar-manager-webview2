@@ -178,6 +178,11 @@ namespace v1_taskbar_manager {
                     }
                 }
                 break;
+            case ID_TRAY_LOCAL_APP_DATA: {
+                const std::wstring localAppData = Utils::GetLocalAppDataFolder();
+                ShellExecute(nullptr, L"open", localAppData.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                break;
+            }
             default: ;
             }
             break;
@@ -278,6 +283,7 @@ namespace v1_taskbar_manager {
         logger->set_level(spdlog::level::trace);
         spdlog::set_level(spdlog::level::trace);
         spdlog::set_default_logger(logger);
+        spdlog::flush_every(std::chrono::seconds(3));
         SPDLOG_INFO("应用程序启动");
         SPDLOG_INFO("日志存储位置: {}", Utils::WStringToString(logFile));
     }

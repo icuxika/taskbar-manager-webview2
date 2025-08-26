@@ -9,6 +9,7 @@
 #define ID_TRAY_EXIT  1002
 #define ID_TRAY_ENABLE_HOTKEY 1003
 #define ID_TRAY_DISABLE_HOTKEY 1004
+#define ID_TRAY_LOCAL_APP_DATA 1005
 
 // 窗口类名和标题
 inline constexpr auto szWindowClass = L"TaskbarManager";
