@@ -33,12 +33,14 @@ namespace v1_taskbar_manager {
     void WebViewController::Initialize() {
         const std::wstring runtimePath = GetWebView2RuntimePath();
         const std::wstring userDataFolder = Utils::GetLocalAppDataFolder();
-        SPDLOG_INFO("WebView2 运行时路径: {}", Utils::WStringToString(runtimePath));
-        SPDLOG_INFO("WebView2 用户数据文件夹: {}", Utils::WStringToString(userDataFolder));
+        SPDLOG_INFO("WebView2 运行时路径: {}",
+                    runtimePath.empty() ? "尝试使用系统自带的 WebView2 Runtime" : Utils::WStringToString(runtimePath));
+        SPDLOG_INFO("WebView2 用户数据文件夹: {}",
+                    userDataFolder.empty() ? "使用默认用户数据文件夹" : Utils::WStringToString(userDataFolder));
 
         HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
-            runtimePath.c_str(),
-            userDataFolder.c_str(),
+            runtimePath.empty() ? nullptr : runtimePath.c_str(),
+            userDataFolder.empty() ? nullptr : userDataFolder.c_str(),
             nullptr,
             Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>([this](HRESULT result,
                 ICoreWebView2Environment *env)
