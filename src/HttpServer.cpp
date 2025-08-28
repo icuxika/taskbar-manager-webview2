@@ -104,6 +104,11 @@ namespace v1_taskbar_manager {
                 if (int selectResult = select(0, &fds, nullptr, nullptr, &timeout);
                     selectResult > 0 && FD_ISSET(serverSocket, &fds)) {
                     if (SOCKET clientSocket = accept(serverSocket, nullptr, nullptr); clientSocket != INVALID_SOCKET) {
+                        // 暂时为 recv 设置一个超时时间，避免在一些机器上 recv 阻塞导致程序无法正常退出
+                        int recvTimeout = 1000;
+                        setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char *>(&recvTimeout),
+                                   sizeof(recvTimeout));
+
                         // 读取客户端请求
                         char buffer[4096];
                         if (const int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
