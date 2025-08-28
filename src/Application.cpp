@@ -43,10 +43,14 @@ namespace v1_taskbar_manager {
             Utils::CreateConsole();
         }
 
+        // DPI 感知已在应用程序清单中设置
+
+        // 设置日志
         SetupSpdlog();
 
-        SetupDPI();
-
+        // https://learn.microsoft.com/zh-cn/windows/win32/sbscs/application-manifests
+        // 以管理员方式重新运行，也可以在 resource/application.manifest 文件中修改 requestedExecutionLevel 来实现
+        // 但目前通过应用程序清单设置的话，CLion会没有权限启动程序
         if (!Utils::IsRunningAsAdmin()) {
             Utils::RelaunchAsAdmin();
             return 0;
@@ -54,20 +58,26 @@ namespace v1_taskbar_manager {
 
         if (Utils::IsAlreadyRunning(L"TaskbarManagerWebview2", mutex)) {
             MessageBox(nullptr, L"程序已经在运行", L"错误", MB_OK | MB_ICONERROR);
-            if (HWND hWnd = FindWindow(szWindowClass, szTitle)) {
+            if (const HWND hWnd = FindWindow(szWindowClass, szTitle)) {
                 ShowWindow(hWnd, SW_RESTORE);
                 SetForegroundWindow(hWnd);
             }
             return 0;
         }
 
-        Initialize(hInstance);
         if (!RegisterWindowClass(hInstance)) {
             MessageBox(nullptr, L"Failed to register window class!", L"Error", MB_ICONERROR);
             return 1;
         }
 
-        int port = StartHttpServerAsync();
+        this->httpServer = std::make_unique<HttpServer>();
+        int port = this->httpServer->Start();
+        if (port == -1) {
+            this->httpServer->Stop();
+            SPDLOG_ERROR("内置 HTTP 服务启动失败");
+            spdlog::shutdown();
+            return 1;
+        }
         SPDLOG_INFO("本地 Socket 服务端口: {}", port);
 
         this->hWnd = CreateMainWindow(hInstance, nCmdShow);
@@ -200,11 +210,6 @@ namespace v1_taskbar_manager {
         return 0;
     }
 
-    bool Application::Initialize(HINSTANCE hInstance) {
-        this->hInstance = hInstance;
-        return true;
-    }
-
     /**
      * @brief 注册窗口类
      * @param hInstance 实例句柄
@@ -288,169 +293,18 @@ namespace v1_taskbar_manager {
         SPDLOG_INFO("日志存储位置: {}", Utils::WStringToString(logFile));
     }
 
-    void Application::SetupDPI() { SetProcessDPIAware(); }
-
     void Application::Cleanup() {
+        this->httpServer->Stop();
         webViewController.reset();
         trayManager.reset();
         globalHotKeyManager.reset();
         if (mutex) {
             CloseHandle(mutex);
         }
-        StopHttpServer();
         SPDLOG_INFO("应用程序已正常退出");
         spdlog::shutdown();
     }
 
-    /**
-     * @brief 启动HTTP服务器异步
-     * @return int 服务器端口号
-     * @note 启动HTTP服务器，监听本地端口，返回服务器端口号
-     */
-    int Application::StartHttpServerAsync() {
-        const std::wstring wStrHTML = Utils::LoadWStringFromResource(302, 303);
-        const std::string html = Utils::WStringToString(wStrHTML);
-
-        std::promise<int> portPromise;
-        auto portFuture = portPromise.get_future();
-
-        serverThread = std::thread([html, p = std::move(portPromise), this]() mutable {
-            // 定义智能指针删除器
-            auto socketDeleter = [](const SOCKET *sock) {
-                if (*sock != INVALID_SOCKET) {
-                    closesocket(*sock);
-                }
-                WSACleanup();
-                delete sock;
-            };
-
-            // 创建智能指针管理套接字
-            std::unique_ptr<SOCKET, decltype(socketDeleter)> serverSocketPtr(new SOCKET(INVALID_SOCKET), socketDeleter);
-            SOCKET &serverSocket = *serverSocketPtr;
-
-            WSADATA wsaData;
-            if (const int result = WSAStartup(MAKEWORD(2, 2), &wsaData); result != 0) {
-                p.set_value(-1);
-                return;
-            }
-
-            serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-            if (serverSocket == INVALID_SOCKET) {
-                WSACleanup();
-                p.set_value(-1);
-                return;
-            }
-
-            constexpr int reuseAddr = 1;
-            setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&reuseAddr),
-                       sizeof(reuseAddr));
-
-            int selectedPort = GetPreferredPort();
-
-            sockaddr_in addr{};
-            addr.sin_family = AF_INET;
-            addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-            addr.sin_port = htons(selectedPort);
-
-            if (bind(serverSocket, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == SOCKET_ERROR) {
-                closesocket(serverSocket);
-                WSACleanup();
-                p.set_value(-1);
-                return;
-            }
-
-            sockaddr_in actualAddr{};
-            int len = sizeof(actualAddr);
-            if (getsockname(serverSocket, reinterpret_cast<sockaddr *>(&actualAddr), &len) == SOCKET_ERROR) {
-                closesocket(serverSocket);
-                WSACleanup();
-                p.set_value(-1);
-                return;
-            }
-            int actualPort = ntohs(actualAddr.sin_port);
-
-            if (listen(serverSocket, 5) == SOCKET_ERROR) {
-                // 增加backlog到5
-                closesocket(serverSocket);
-                WSACleanup();
-                p.set_value(-1);
-                return;
-            }
-
-            Utils::SavePortToWindowsRegistry(actualPort);
-            p.set_value(actualPort);
-
-            while (!shouldStop.load()) {
-                fd_set fds;
-                FD_ZERO(&fds);
-                FD_SET(serverSocket, &fds);
-
-                timeval timeout = {0, 100000}; // 100ms超时
-
-                if (int selectResult = select(0, &fds, nullptr, nullptr, &timeout);
-                    selectResult > 0 && FD_ISSET(serverSocket, &fds)) {
-                    if (SOCKET clientSocket = accept(serverSocket, nullptr, nullptr); clientSocket != INVALID_SOCKET) {
-                        // 读取客户端请求
-                        char buffer[4096];
-                        if (const int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-                            bytesReceived > 0) {
-                            buffer[bytesReceived] = '\0';
-                        }
-
-                        std::ostringstream response;
-                        response << "HTTP/1.1 200 OK\r\n";
-                        response << "Content-Type: text/html; charset=utf-8\r\n";
-                        response << "Content-Length: " << html.size() << "\r\n";
-                        response << "Connection: close\r\n";
-                        response << "\r\n";
-                        response << html;
-
-                        std::string responseStr = response.str();
-
-                        // 发送响应
-                        int totalSent = 0;
-                        int responseSize = static_cast<int>(responseStr.size());
-                        while (totalSent < responseSize && !shouldStop.load()) {
-                            int sent = send(clientSocket, responseStr.c_str() + totalSent, responseSize - totalSent, 0);
-                            if (sent == SOCKET_ERROR) {
-                                break;
-                            }
-                            totalSent += sent;
-                        }
-                        shutdown(clientSocket, SD_SEND);
-                        closesocket(clientSocket);
-                    }
-                }
-            }
-        });
-        return portFuture.get();
-    }
-
-    void Application::StopHttpServer() {
-        SPDLOG_INFO("正在停止 Socket 服务");
-        shouldStop.store(true);
-        if (serverThread.joinable()) {
-            SPDLOG_INFO("等待 Socket 服务线程结束");
-            serverThread.join();
-        }
-        SPDLOG_INFO("Socket 服务已停止");
-    }
-
-    /**
-     * @brief 获取首选端口
-     * @return int 端口号
-     * @note 从Windows注册表中读取端口号，如果端口号不可用，则返回0
-     */
-    int Application::GetPreferredPort() {
-        const int savedPort = Utils::ReadPortFromWindowsRegistry();
-        if (savedPort > 0) {
-            if (Utils::IsPortAvailable(savedPort)) {
-                return savedPort;
-            }
-            SPDLOG_INFO("程序上次使用的端口不再可用，将使用系统分配的新端口");
-        }
-        return 0;
-    }
 } // namespace v1_taskbar_manager
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {

@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "GlobalHotKeyManager.h"
+#include "HttpServer.h"
 #include "TrayManager.h"
 #include "WebViewController.h"
 
@@ -12,6 +13,10 @@ namespace v1_taskbar_manager {
     class Application {
     public:
         static Application &GetInstance();
+
+        Application(const Application &) = delete;
+
+        Application &operator=(const Application &) = delete;
 
         int Run(HINSTANCE hInstance, int nCmdShow);
 
@@ -22,33 +27,21 @@ namespace v1_taskbar_manager {
 
         ~Application() = default;
 
-        bool Initialize(HINSTANCE hInstance);
-
         bool RegisterWindowClass(HINSTANCE hInstance);
 
         HWND CreateMainWindow(HINSTANCE hInstance, int nCmdShow);
 
         void SetupSpdlog();
 
-        void SetupDPI();
-
         void Cleanup();
 
-        int StartHttpServerAsync();
-
-        void StopHttpServer();
-
-        int GetPreferredPort();
-
-        HINSTANCE hInstance = nullptr;
         HWND hWnd = nullptr;
         int hotKeyId = 0;
+        std::unique_ptr<HttpServer> httpServer;
         std::shared_ptr<GlobalHotKeyManager> globalHotKeyManager;
         std::unique_ptr<TrayManager> trayManager;
         std::unique_ptr<WebViewController> webViewController;
         HANDLE mutex = nullptr;
-        std::thread serverThread;
-        std::atomic<bool> shouldStop{false};
     };
 }
 

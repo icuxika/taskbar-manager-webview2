@@ -4,6 +4,7 @@ project(taskbar-manager-webview2 VERSION 1.0.0.0)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "/utf-8 /EHsc")
 
+set(MANIFEST_PATH "${CMAKE_SOURCE_DIR}/resource/application.manifest")
 set(APP_ICON_PATH "${CMAKE_SOURCE_DIR}/resource/icon.ico")
 set(HTML_PATH "${CMAKE_SOURCE_DIR}/resource/index.html")
 set(BRIDGE_SCRIPT_PATH "${CMAKE_SOURCE_DIR}/resource/bridge.js")
@@ -16,7 +17,7 @@ configure_file(
 set_source_files_properties(
         ${CMAKE_BINARY_DIR}/WindowsProject.rc
         PROPERTIES
-        OBJECT_DEPENDS "${HTML_PATH};${APP_ICON_PATH};${BRIDGE_SCRIPT_PATH}"
+        OBJECT_DEPENDS "${MANIFEST_PATH};${HTML_PATH};${BRIDGE_SCRIPT_PATH};${APP_ICON_PATH}"
 )
 
 add_compile_definitions(UNICODE _UNICODE)
@@ -24,6 +25,13 @@ add_compile_definitions(UNICODE _UNICODE)
 file(GLOB SOURCES "src/*.cpp")
 add_executable(${PROJECT_NAME} WIN32 main.cpp ${SOURCES} ${CMAKE_BINARY_DIR}/WindowsProject.rc)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+
+# 不创建默认清单文件
+set_target_properties(
+        ${PROJECT_NAME}
+        PROPERTIES
+        LINK_FLAGS "/MANIFEST:NO"
+)
 
 find_program(NUGET_EXE NAMES nuget)
 if (NOT NUGET_EXE)
