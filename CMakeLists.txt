@@ -20,6 +20,9 @@ set_source_files_properties(
         OBJECT_DEPENDS "${MANIFEST_PATH};${HTML_PATH};${BRIDGE_SCRIPT_PATH};${APP_ICON_PATH}"
 )
 
+# 强制静态链接所有运行时库，避免其他电脑安装的Microsoft Visual C++ 可再发行程序包不同而导致程序无法启动
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 add_compile_definitions(UNICODE _UNICODE)
 
 file(GLOB SOURCES "src/*.cpp")
