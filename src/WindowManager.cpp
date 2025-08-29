@@ -42,6 +42,11 @@ namespace v1_taskbar_manager {
      * @note 考虑窗口可见性、样式、父窗口等因素
      */
     bool WindowManager::ShouldShowInTaskbar(HWND hWnd) {
+        // 基本有效性检查
+        if (!hWnd || !IsWindow(hWnd)) {
+            return false;
+        }
+
         // 检查窗口是否可见
         if (!IsWindowVisible(hWnd)) {
             return false;
@@ -51,19 +56,35 @@ namespace v1_taskbar_manager {
         LONG style = GetWindowLong(hWnd, GWL_STYLE);
         LONG exStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
 
-        // 排除工具窗口（除非有 WS_EX_APPWINDOW 样式）
-        if ((exStyle & WS_EX_TOOLWINDOW) && !(exStyle & WS_EX_APPWINDOW)) {
+        if (style == 0 && GetLastError() != 0) {
             return false;
         }
 
-        // 检查是否有父窗口（排除子窗口）
+        // 排除工具窗口（除非有 WS_EX_APPWINDOW 样式）
+        if (exStyle & WS_EX_TOOLWINDOW && !(exStyle & WS_EX_APPWINDOW)) {
+            return false;
+        }
+
+        // 排除 NoActivate 窗口（通常是通知、弹出窗口等）
+        if (exStyle & WS_EX_NOACTIVATE) {
+            return false;
+        }
+
+        // 检查是否有父窗口（排除子窗口和拥有者窗口）
         HWND parent = GetParent(hWnd);
+        HWND owner = GetWindow(hWnd, GW_OWNER);
+
         if (parent != nullptr && parent != GetDesktopWindow()) {
             return false;
         }
 
+        // 如果有拥有者窗口且没有 WS_EX_APPWINDOW 样式，通常不在任务栏显示
+        if (owner != nullptr && !(exStyle & WS_EX_APPWINDOW)) {
+            return false;
+        }
+
         // 检查窗口是否有标题
-        int titleLength = GetWindowTextLengthW(hWnd);
+        int titleLength = GetWindowTextLength(hWnd);
 
         // 如果有 WS_EX_APPWINDOW 样式，即使没有标题也显示
         if (exStyle & WS_EX_APPWINDOW) {
@@ -77,7 +98,7 @@ namespace v1_taskbar_manager {
 
         // 排除一些特殊的窗口类
         wchar_t className[256];
-        GetClassNameW(hWnd, className, sizeof(className) / sizeof(wchar_t));
+        GetClassName(hWnd, className, sizeof(className) / sizeof(wchar_t));
         std::wstring classNameStr(className);
 
         // 排除一些系统窗口类
@@ -97,22 +118,25 @@ namespace v1_taskbar_manager {
      * @note 内部调用ShouldShowInTaskbar判断是否应包含窗口
      */
     BOOL CALLBACK WindowManager::EnumWindowsProc(HWND hWnd, LPARAM lParam) {
-        std::vector<WindowInfo> *windows =
-            reinterpret_cast<std::vector<WindowInfo> *>(lParam);
+        if (!lParam) {
+            return FALSE;
+        }
+
+        auto *windows = reinterpret_cast<std::vector<WindowInfo> *>(lParam);
 
         // 检查是否应该在任务栏显示
         if (!ShouldShowInTaskbar(hWnd)) {
-            return TRUE; // 继续枚举
+            return TRUE;
         }
 
         WindowInfo info;
         info.hWnd = hWnd;
 
         // 获取窗口标题
-        int titleLength = GetWindowTextLengthW(hWnd);
+        int titleLength = GetWindowTextLength(hWnd);
         if (titleLength > 0) {
             std::vector<wchar_t> titleBuffer(titleLength + 1);
-            GetWindowTextW(hWnd, titleBuffer.data(), titleLength + 1);
+            GetWindowText(hWnd, titleBuffer.data(), titleLength + 1);
             info.title = std::wstring(titleBuffer.data());
         } else {
             info.title = L"(无标题)";
@@ -120,7 +144,7 @@ namespace v1_taskbar_manager {
 
         // 获取窗口类名
         wchar_t className[256];
-        if (GetClassNameW(hWnd, className, sizeof(className) / sizeof(wchar_t))) {
+        if (GetClassName(hWnd, className, sizeof(className) / sizeof(wchar_t))) {
             info.className = std::wstring(className);
         }
 
