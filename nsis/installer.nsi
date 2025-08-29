@@ -179,10 +179,8 @@ Section "MainSection"
       DetailPrint "Microsoft Visual C++ 可再发行程序包安装完成"
       Goto vcredist_end
     vcredist_missing:
-      MessageBox MB_YESNO|MB_ICONEXCLAMATION "$(vcredistMissing)" /SD IDYES IDYES vcredist_continue
-      Abort
-    vcredist_continue:
-      DetailPrint "User chose to continue without VC++ Redistributable"
+      DetailPrint "电脑中未安装 Microsoft Visual C++ 可再发行程序包"
+      DetailPrint "应用程序安装中不包含 VC_redist.x64.exe"
     vcredist_end:
   ${Else}
     IfFileExists "$INSTDIR\VC_redist.x64.exe" file_exists file_not_exists
