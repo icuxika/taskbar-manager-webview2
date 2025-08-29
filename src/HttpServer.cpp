@@ -4,6 +4,7 @@
 #include "spdlog/spdlog.h"
 
 #include <future>
+#include <iostream>
 #include <sstream>
 
 namespace v1_taskbar_manager {
@@ -176,6 +177,227 @@ namespace v1_taskbar_manager {
             SPDLOG_INFO("程序上次使用的端口不再可用，将使用系统分配的新端口");
         }
         return 0;
+    }
+
+}
+
+namespace v2_taskbar_manager {
+    int HttpServer::Start() {
+        int iResult = 0;
+
+        WSADATA wsaData = {0};
+        iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+        if (iResult != 0) {
+            return -1;
+        }
+
+        listenSocket = WSASocket(AF_INET, SOCK_STREAM, 0, nullptr, 0, WSA_FLAG_OVERLAPPED);
+        if (listenSocket == INVALID_SOCKET) {
+            WSACleanup();
+            return -1;
+        }
+
+        u_long iMode = 1;
+        iResult = ioctlsocket(listenSocket, FIONBIO, &iMode);
+        if (iResult != NO_ERROR) {
+            closesocket(listenSocket);
+            WSACleanup();
+            return -1;
+        }
+
+        int selectedPort = v1_taskbar_manager::HttpServer::GetPreferredPort();
+
+        sockaddr_in address;
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        address.sin_port = htons(selectedPort);
+
+        iResult = bind(listenSocket, reinterpret_cast<SOCKADDR *>(&address), sizeof (address));
+        if (iResult == SOCKET_ERROR) {
+            closesocket(listenSocket);
+            WSACleanup();
+            return -1;
+        }
+
+        sockaddr_in actualAddr{};
+        int len = sizeof(actualAddr);
+        if (getsockname(listenSocket, reinterpret_cast<sockaddr *>(&actualAddr), &len) == SOCKET_ERROR) {
+            closesocket(listenSocket);
+            WSACleanup();
+            return -1;
+        }
+
+        int actualPort = ntohs(actualAddr.sin_port);
+
+        if (listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) {
+            closesocket(listenSocket);
+            WSACleanup();
+            return -1;
+        }
+
+        if (selectedPort == 0) {
+            v1_taskbar_manager::Utils::SavePortToWindowsRegistry(actualPort);
+        }
+
+        completionPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, listenSocket, 0);
+        if (!completionPort) {
+            CloseHandle(completionPort);
+            closesocket(listenSocket);
+            WSACleanup();
+            return -1;
+        }
+        CreateIoCompletionPort(reinterpret_cast<HANDLE>(listenSocket), completionPort, listenSocket, 0);
+
+        GUID guidAcceptEx = WSAID_ACCEPTEX;
+        DWORD bytes;
+        iResult = WSAIoctl(listenSocket,SIO_GET_EXTENSION_FUNCTION_POINTER, &guidAcceptEx, sizeof(guidAcceptEx),
+                           &lpFnAcceptEx,
+                           sizeof(lpFnAcceptEx), &bytes, nullptr, nullptr);
+        if (iResult == SOCKET_ERROR) {
+            CloseHandle(completionPort);
+            closesocket(listenSocket);
+            WSACleanup();
+            return -1;
+        }
+        isRunning.store(true);
+        worker = std::thread(&HttpServer::WorkerThread, this);
+        PostAccept();
+        return actualPort;
+    }
+
+    void HttpServer::Stop() {
+        SPDLOG_INFO("正在停止 Socket 服务");
+        if (!isRunning) {
+            SPDLOG_INFO("Socket 服务已停止");
+            return;
+        }
+
+        isRunning.store(false);
+
+        if (completionPort) {
+            PostQueuedCompletionStatus(completionPort, 0, 0, nullptr);
+        }
+
+        if (worker.joinable()) {
+            SPDLOG_INFO("等待 Worker 线程结束");
+            worker.join();
+        }
+
+        if (listenSocket != INVALID_SOCKET) {
+            closesocket(listenSocket);
+            listenSocket = INVALID_SOCKET;
+        }
+
+        if (completionPort) {
+            CloseHandle(completionPort);
+            completionPort = nullptr;
+        }
+
+        WSACleanup();
+        SPDLOG_INFO("Socket 服务已停止");
+    }
+
+    void HttpServer::PostAccept() {
+        SOCKET socket = WSASocket(AF_INET, SOCK_STREAM, 0, nullptr, 0,WSA_FLAG_OVERLAPPED);
+        IOContext *context = new IOContext();
+        context->socket = socket;
+        context->op = IOContext::OP_ACCEPT;
+        context->buffer.buf = context->recvData;
+        context->buffer.len = sizeof(context->recvData);
+
+        DWORD bytes = 0;
+        BOOL ok = lpFnAcceptEx(listenSocket, socket, context->recvData, 0, sizeof(sockaddr_in) + 16,
+                               sizeof(sockaddr_in) + 16, &bytes, &context->overlapped);
+        if (!ok && WSAGetLastError() != ERROR_IO_PENDING) {
+            closesocket(socket);
+            delete context;
+        }
+    }
+
+    void HttpServer::WorkerThread() {
+        const auto logger = spdlog::get("spdlog");
+        const std::wstring wStrHTML = v1_taskbar_manager::Utils::LoadWStringFromResource(302, 303);
+        const std::string html = v1_taskbar_manager::Utils::WStringToString(wStrHTML);
+        while (isRunning) {
+            DWORD bytesTransferred;
+            ULONG_PTR completionKey;
+            LPOVERLAPPED overlapped;
+
+            BOOL ok = GetQueuedCompletionStatus(completionPort, &bytesTransferred, &completionKey, &overlapped,
+                                                INFINITE);
+
+            if (!isRunning) {
+                break;
+            }
+
+            if (!ok) {
+                if (GetLastError() == ERROR_TIMEOUT) {
+                    continue;
+                }
+                if (overlapped) {
+                    IOContext *context = CONTAINING_RECORD(overlapped, IOContext, overlapped);
+                    if (context->socket != INVALID_SOCKET) {
+                        closesocket(context->socket);
+                        delete context;
+                    }
+                }
+                continue;
+            }
+
+            if (completionKey == 0 && overlapped == nullptr) {
+                break;
+            }
+
+            if (!overlapped) {
+                continue;
+            }
+
+            IOContext *context = CONTAINING_RECORD(overlapped, IOContext, overlapped);
+            if (context->op == IOContext::OP_ACCEPT) {
+                setsockopt(context->socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
+                           reinterpret_cast<char *>(&listenSocket), sizeof(listenSocket));
+
+                CreateIoCompletionPort(reinterpret_cast<HANDLE>(context->socket), completionPort, context->socket, 0);
+
+                ZeroMemory(&context->overlapped, sizeof(context->overlapped));
+                context->op = IOContext::OP_RECV;
+                context->buffer.buf = context->recvData;
+                context->buffer.len = sizeof(context->recvData);
+                DWORD flags = 0;
+                WSARecv(context->socket, &context->buffer, 1, nullptr, &flags, &context->overlapped, nullptr);
+
+                PostAccept();
+            } else if (context->op == IOContext::OP_RECV) {
+                if (bytesTransferred == 0) {
+                    closesocket(context->socket);
+                    delete context;
+                    continue;
+                }
+
+                std::string request(context->recvData, bytesTransferred);
+                logger->log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION}, spdlog::level::info,
+                            "收到请求: \n{}", request);
+
+                std::ostringstream stream;
+                stream << "HTTP/1.1 200 OK\r\n";
+                stream << "Content-Type: text/html; charset=utf-8\r\n";
+                stream << "Content-Length: " << html.size() << "\r\n";
+                stream << "Connection: close\r\n";
+                stream << "\r\n";
+                stream << html;
+
+                context->sendData = stream.str();
+
+                ZeroMemory(&context->overlapped, sizeof(context->overlapped));
+                context->op = IOContext::OP_SEND;
+                context->buffer.buf = context->sendData.data();
+                context->buffer.len = context->sendData.size();
+                WSASend(context->socket, &context->buffer, 1, nullptr, 0, &context->overlapped, nullptr);
+            } else if (context->op == IOContext::OP_SEND) {
+                closesocket(context->socket);
+                delete context;
+            }
+        }
     }
 
 }
