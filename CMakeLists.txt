@@ -25,6 +25,9 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 add_compile_definitions(UNICODE _UNICODE)
 
+string(APPEND CMAKE_CXX_FLAGS_MINSIZEREL " /GL")
+string(APPEND CMAKE_EXE_LINKER_FLAGS_MINSIZEREL " /LTCG /OPT:REF /OPT:ICF")
+
 file(GLOB SOURCES "src/*.cpp")
 add_executable(${PROJECT_NAME} WIN32 main.cpp ${SOURCES} ${CMAKE_BINARY_DIR}/WindowsProject.rc)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
