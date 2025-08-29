@@ -377,4 +377,27 @@ namespace v1_taskbar_manager {
         }
         return L"";
     }
+
+    /**
+     * @brief 获取格式化的错误信息
+     * @param hr HRESULT错误码
+     * @return 格式化后的错误信息字符串
+     */
+    std::wstring Utils::GetFormatMessage(const HRESULT hr) {
+        LPWSTR buffer = nullptr;
+        FormatMessage(
+            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            nullptr,
+            hr,
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            reinterpret_cast<LPWSTR>(&buffer),
+            0,
+            nullptr
+            );
+        const std::wstring msg(buffer ? buffer : L"");
+        if (buffer) {
+            LocalFree(buffer);
+        }
+        return msg;
+    }
 }

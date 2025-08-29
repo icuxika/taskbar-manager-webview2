@@ -38,6 +38,32 @@ namespace v1_taskbar_manager {
         SPDLOG_INFO("WebView2 用户数据文件夹: {}",
                     userDataFolder.empty() ? "使用默认用户数据文件夹" : Utils::WStringToString(userDataFolder));
 
+        LPWSTR versionInfo = nullptr;
+        HRESULT hr = GetAvailableCoreWebView2BrowserVersionString(runtimePath.empty() ? nullptr : runtimePath.c_str(),
+                                                                  &versionInfo);
+        if (versionInfo) {
+            SPDLOG_INFO("WebView2 Runtime 版本: {}", Utils::WStringToString(versionInfo));
+            int compareResult;
+            CompareBrowserVersions(L"1.0.3351.48", versionInfo, &compareResult);
+            if (compareResult >= 0) {
+                SPDLOG_INFO("CMakeLists.txt 中指定的 WebView2 SDK 版本比 WebView2 Runtime 版本高",
+                            Utils::WStringToString(versionInfo));
+            } else {
+                SPDLOG_INFO("CMakeLists.txt 中指定的 WebView2 SDK 版本比 WebView2 Runtime 版本低",
+                            Utils::WStringToString(versionInfo));
+            }
+            CoTaskMemFree(versionInfo);
+        }
+        if (FAILED(hr) || !versionInfo) {
+            if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
+                SPDLOG_ERROR("找不到已安装的 WebView2 运行时，HRESULT=0x{:08X}, {}", static_cast<unsigned long>(hr),
+                             Utils::WStringToString(Utils::GetFormatMessage(hr)));
+                MessageBox(hWnd, L"请检查电脑上是否安装了 WebView2 Runtime 或者重新安装自带 WebView2 Runtime 的应用程序版本。", L"错误",
+                           MB_OK | MB_ICONERROR);
+                PostQuitMessage(0);
+            }
+        }
+
         HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
             runtimePath.empty() ? nullptr : runtimePath.c_str(),
             userDataFolder.empty() ? nullptr : userDataFolder.c_str(),
@@ -67,25 +93,8 @@ namespace v1_taskbar_manager {
                     return S_OK;
                 }).Get());
         if (FAILED(result)) {
-            LPWSTR buffer = nullptr;
-            FormatMessage(
-                FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                nullptr,
-                result,
-                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                reinterpret_cast<LPWSTR>(&buffer),
-                0,
-                nullptr
-                );
-            const std::wstring msg(buffer ? buffer : L"");
-            if (buffer) {
-                LocalFree(buffer);
-            }
             SPDLOG_ERROR("无法创建 WebView2 环境，HRESULT=0x{:08X}, {}", static_cast<unsigned long>(result),
-                         Utils::WStringToString(msg));
-            if (result == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
-                SPDLOG_ERROR("当前电脑上未安装 WebView2 Runtime 且当前应用程序未自带 WebView2 Runtime 相关文件");
-            }
+                         Utils::WStringToString(Utils::GetFormatMessage(result)));
             MessageBox(hWnd, L"请检查电脑上是否安装了 WebView2 Runtime 或者重新安装自带 WebView2 Runtime 的应用程序版本。", L"错误",
                        MB_OK | MB_ICONERROR);
             PostQuitMessage(0);

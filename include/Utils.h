@@ -34,5 +34,7 @@ namespace v1_taskbar_manager {
         static bool IsPortAvailable(int port);
 
         static std::wstring GetLocalAppDataFolder();
+
+        static std::wstring GetFormatMessage(HRESULT hr);
     };
 }
