@@ -23,6 +23,7 @@ namespace v1_taskbar_manager {
      * @return int 服务器监听的端口号
      */
     int HttpServer::Start() {
+        // 从资源文件加载HTML内容
         const std::wstring wStrHTML = Utils::LoadWStringFromResource(302, 303);
         const std::string html = Utils::WStringToString(wStrHTML);
 
@@ -45,6 +46,7 @@ namespace v1_taskbar_manager {
                 return;
             }
 
+            // 设置套接字为非阻塞模式
             u_long iMode = 1;
             if (ioctlsocket(serverSocket, FIONBIO, &iMode) != NO_ERROR) {
                 closesocket(serverSocket);
@@ -53,6 +55,7 @@ namespace v1_taskbar_manager {
                 return;
             }
 
+            // 设置套接字选项以允许地址重用
             constexpr int reuseAddr = 1;
             setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char *>(&reuseAddr),
                        sizeof(reuseAddr));
@@ -71,6 +74,7 @@ namespace v1_taskbar_manager {
                 return;
             }
 
+            // 获取实际分配的端口号
             sockaddr_in actualAddr{};
             int len = sizeof(actualAddr);
             if (getsockname(serverSocket, reinterpret_cast<sockaddr *>(&actualAddr), &len) == SOCKET_ERROR) {
@@ -89,9 +93,11 @@ namespace v1_taskbar_manager {
                 return;
             }
 
+            // 将端口号保存到Windows注册表
             Utils::SavePortToWindowsRegistry(actualPort);
             p.set_value(actualPort);
 
+            // 客户端套接字管理
             std::vector<SOCKET> clientSockets;
             std::unordered_map<SOCKET, std::string> clientRecvBuffers;
             std::unordered_map<SOCKET, std::string> clientSendBuffers;
@@ -115,6 +121,7 @@ namespace v1_taskbar_manager {
                     }
                 }
 
+                // 设置select超时时间
                 timeval timeout = {0, 100000};
 
                 int selectResult = select(0, &readFds, &writeFds, nullptr, &timeout);
@@ -127,6 +134,7 @@ namespace v1_taskbar_manager {
                 }
 
                 if (selectResult > 0) {
+                    // 处理新的客户端连接
                     if (FD_ISSET(serverSocket, &readFds)) {
                         SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
                         if (clientSocket != INVALID_SOCKET) {
@@ -140,6 +148,7 @@ namespace v1_taskbar_manager {
 
                     std::vector<SOCKET> socketsToMove;
 
+                    // 处理已连接客户端的数据
                     for (SOCKET client : clientSockets) {
                         if (FD_ISSET(client, &readFds)) {
                             char buffer[2048];
@@ -198,6 +207,7 @@ namespace v1_taskbar_manager {
                             }
                         }
 
+                        // 处理客户端发送数据
                         if (FD_ISSET(client, &writeFds) && clientSendBuffers.find(client) != clientSendBuffers.end()) {
                             const std::string &responseStr = clientSendBuffers[client];
                             int totalCount = static_cast<int>(responseStr.size());
@@ -219,6 +229,7 @@ namespace v1_taskbar_manager {
                         }
                     }
 
+                    // 清理已断开连接的客户端
                     for (SOCKET client : socketsToMove) {
                         auto it = std::find(clientSockets.begin(), clientSockets.end(), client);
                         if (it != clientSockets.end()) {
@@ -232,11 +243,13 @@ namespace v1_taskbar_manager {
                 }
             }
 
+            // 关闭所有客户端连接
             for (SOCKET client : clientSockets) {
                 shutdown(client, SD_SEND);
                 closesocket(client);
             }
 
+            // 清理服务器套接字和Winsock
             closesocket(serverSocket);
             WSACleanup();
         });
@@ -294,6 +307,7 @@ namespace v2_taskbar_manager {
             return -1;
         }
 
+        // 设置套接字为非阻塞模式
         u_long iMode = 1;
         iResult = ioctlsocket(listenSocket, FIONBIO, &iMode);
         if (iResult != NO_ERROR) {
@@ -316,6 +330,7 @@ namespace v2_taskbar_manager {
             return -1;
         }
 
+        // 获取实际分配的端口号
         sockaddr_in actualAddr{};
         int len = sizeof(actualAddr);
         if (getsockname(listenSocket, reinterpret_cast<sockaddr *>(&actualAddr), &len) == SOCKET_ERROR) {
@@ -337,6 +352,7 @@ namespace v2_taskbar_manager {
             v1_taskbar_manager::Utils::SavePortToWindowsRegistry(actualPort);
         }
 
+        // 创建I/O完成端口
         completionPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, listenSocket, 0);
         if (completionPort == nullptr) {
             closesocket(listenSocket);
@@ -345,6 +361,7 @@ namespace v2_taskbar_manager {
         }
         CreateIoCompletionPort(reinterpret_cast<HANDLE>(listenSocket), completionPort, listenSocket, 0);
 
+        // 获取AcceptEx函数指针
         GUID guidAcceptEx = WSAID_ACCEPTEX;
         DWORD bytes;
         iResult = WSAIoctl(listenSocket,SIO_GET_EXTENSION_FUNCTION_POINTER, &guidAcceptEx, sizeof(guidAcceptEx),
@@ -356,6 +373,8 @@ namespace v2_taskbar_manager {
             WSACleanup();
             return -1;
         }
+
+        // 启动服务器
         isRunning.store(true);
         worker = std::thread(&HttpServer::WorkerThread, this);
         PostAccept();
@@ -394,11 +413,17 @@ namespace v2_taskbar_manager {
         SPDLOG_INFO("Socket 服务已停止");
     }
 
+    /**
+     * @brief 提交接受连接请求
+     *
+     * 提交一个异步接受连接请求，将新连接添加到客户端列表中。
+     */
     void HttpServer::PostAccept() {
         const SOCKET socket = WSASocket(AF_INET, SOCK_STREAM, 0, nullptr, 0,WSA_FLAG_OVERLAPPED);
         if (socket == INVALID_SOCKET) {
             return;
         }
+        // 创建一个新的I/O上下文来跟踪这个异步操作
         auto *context = new IOContext();
         context->socket = socket;
         context->op = IOContext::OP_ACCEPT;
@@ -416,13 +441,18 @@ namespace v2_taskbar_manager {
 
     void HttpServer::WorkerThread() {
         const auto logger = spdlog::get("spdlog");
+        // 从资源文件加载HTML内容
         const std::wstring wStrHTML = v1_taskbar_manager::Utils::LoadWStringFromResource(302, 303);
         const std::string html = v1_taskbar_manager::Utils::WStringToString(wStrHTML);
         while (isRunning) {
+            // 传输的字节数
             DWORD bytesTransferred;
+            // 完成键
             ULONG_PTR completionKey;
+            // 重叠结构指针
             LPOVERLAPPED overlapped;
 
+            // 从完成端口获取完成的I/O操作
             const BOOL ok = GetQueuedCompletionStatus(completionPort, &bytesTransferred, &completionKey, &overlapped,
                                                       INFINITE);
 
@@ -453,19 +483,24 @@ namespace v2_taskbar_manager {
             }
 
             const auto context = CONTAINING_RECORD(overlapped, IOContext, overlapped);
+            // 根据操作类型处理不同的I/O完成事件
             if (context->op == IOContext::OP_ACCEPT) {
                 setsockopt(context->socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
                            reinterpret_cast<char *>(&listenSocket), sizeof(listenSocket));
 
                 CreateIoCompletionPort(reinterpret_cast<HANDLE>(context->socket), completionPort, context->socket, 0);
 
+                // 重置overlapped结构并准备接收数据
                 ZeroMemory(&context->overlapped, sizeof(context->overlapped));
                 context->op = IOContext::OP_RECV;
                 context->buffer.buf = context->recvData;
                 context->buffer.len = sizeof(context->recvData);
+
+                // 投递异步接收操作
                 DWORD flags = 0;
                 WSARecv(context->socket, &context->buffer, 1, nullptr, &flags, &context->overlapped, nullptr);
 
+                // 投递下一个接受连接操作，保持服务器能够接受新连接
                 PostAccept();
             } else if (context->op == IOContext::OP_RECV) {
                 if (bytesTransferred == 0) {
@@ -477,6 +512,7 @@ namespace v2_taskbar_manager {
                 // 累积接收到的请求数据
                 context->requestData.append(context->recvData, bytesTransferred);
 
+                // 检查是否已接收完整的HTTP头部
                 if (!context->headerComplete) {
                     const size_t headerEnd = context->requestData.find("\r\n\r\n");
                     if (headerEnd != std::string::npos) {
@@ -518,6 +554,7 @@ namespace v2_taskbar_manager {
                                 context->sendData = stream.str();
                             }
 
+                            // 投递异步发送操作
                             ZeroMemory(&context->overlapped, sizeof(context->overlapped));
                             context->op = IOContext::OP_SEND;
                             context->buffer.buf = context->sendData.data();
@@ -525,6 +562,7 @@ namespace v2_taskbar_manager {
                             WSASend(context->socket, &context->buffer, 1, nullptr, 0, &context->overlapped, nullptr);
                         }
                     } else {
+                        // HTTP头部还未完整接收，继续接收数据
                         ZeroMemory(&context->overlapped, sizeof(context->overlapped));
                         context->op = IOContext::OP_RECV;
                         context->buffer.buf = context->recvData;
