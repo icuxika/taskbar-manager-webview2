@@ -30,18 +30,7 @@ namespace v1_taskbar_manager {
         auto portFuture = portPromise.get_future();
 
         serverThread = std::thread([html, p = std::move(portPromise), this]() mutable {
-            // 定义智能指针删除器
-            auto socketDeleter = [](const SOCKET *sock) {
-                if (*sock != INVALID_SOCKET) {
-                    closesocket(*sock);
-                }
-                WSACleanup();
-                delete sock;
-            };
-
-            // 创建智能指针管理套接字
-            std::unique_ptr<SOCKET, decltype(socketDeleter)> serverSocketPtr(new SOCKET(INVALID_SOCKET), socketDeleter);
-            SOCKET &serverSocket = *serverSocketPtr;
+            const auto logger = spdlog::get("spdlog");
 
             WSADATA wsaData;
             if (const int result = WSAStartup(MAKEWORD(2, 2), &wsaData); result != 0) {
@@ -49,8 +38,16 @@ namespace v1_taskbar_manager {
                 return;
             }
 
-            serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+            SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
             if (serverSocket == INVALID_SOCKET) {
+                WSACleanup();
+                p.set_value(-1);
+                return;
+            }
+
+            u_long iMode = 1;
+            if (ioctlsocket(serverSocket, FIONBIO, &iMode) != NO_ERROR) {
+                closesocket(serverSocket);
                 WSACleanup();
                 p.set_value(-1);
                 return;
@@ -82,10 +79,10 @@ namespace v1_taskbar_manager {
                 p.set_value(-1);
                 return;
             }
+
             int actualPort = ntohs(actualAddr.sin_port);
 
-            if (listen(serverSocket, 5) == SOCKET_ERROR) {
-                // 增加backlog到5
+            if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
                 closesocket(serverSocket);
                 WSACleanup();
                 p.set_value(-1);
@@ -95,53 +92,153 @@ namespace v1_taskbar_manager {
             Utils::SavePortToWindowsRegistry(actualPort);
             p.set_value(actualPort);
 
+            std::vector<SOCKET> clientSockets;
+            std::unordered_map<SOCKET, std::string> clientRecvBuffers;
+            std::unordered_map<SOCKET, std::string> clientSendBuffers;
+            std::unordered_map<SOCKET, int> sendCount;
+
             while (!shouldStop.load()) {
-                fd_set fds;
-                FD_ZERO(&fds);
-                FD_SET(serverSocket, &fds);
+                fd_set readFds, writeFds;
+                FD_ZERO(&readFds);
+                FD_ZERO(&writeFds);
 
-                timeval timeout = {0, 100000}; // 100ms超时
+                // 添加服务器套接字到读集合
+                FD_SET(serverSocket, &readFds);
 
-                if (int selectResult = select(0, &fds, nullptr, nullptr, &timeout);
-                    selectResult > 0 && FD_ISSET(serverSocket, &fds)) {
-                    if (SOCKET clientSocket = accept(serverSocket, nullptr, nullptr); clientSocket != INVALID_SOCKET) {
-                        // 暂时为 recv 设置一个超时时间，避免在一些机器上 recv 阻塞导致程序无法正常退出
-                        int recvTimeout = 1000;
-                        setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char *>(&recvTimeout),
-                                   sizeof(recvTimeout));
+                // 添加所有客户端套接字到适当的集合
+                for (SOCKET client : clientSockets) {
+                    FD_SET(client, &readFds);
+                    // 如果客户端有待发送的数据，添加到写集合
+                    if (clientSendBuffers.find(client) != clientSendBuffers.end() &&
+                        sendCount[client] < clientSendBuffers[client].size()) {
+                        FD_SET(client, &writeFds);
+                    }
+                }
 
-                        // 读取客户端请求
-                        char buffer[4096];
-                        if (const int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
-                            bytesReceived > 0) {
-                            buffer[bytesReceived] = '\0';
+                timeval timeout = {0, 100000};
+
+                int selectResult = select(0, &readFds, &writeFds, nullptr, &timeout);
+
+                if (selectResult == SOCKET_ERROR) {
+                    if (WSAGetLastError() == WSAENOTSOCK) {
+                        break;
+                    }
+                    continue;
+                }
+
+                if (selectResult > 0) {
+                    if (FD_ISSET(serverSocket, &readFds)) {
+                        SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
+                        if (clientSocket != INVALID_SOCKET) {
+                            u_long clientMode = 1;
+                            ioctlsocket(clientSocket, FIONBIO, &clientMode);
+                            clientSockets.push_back(clientSocket);
+                            sendCount[clientSocket] = 0;
+                            clientRecvBuffers[clientSocket] = "";
                         }
+                    }
 
-                        std::ostringstream response;
-                        response << "HTTP/1.1 200 OK\r\n";
-                        response << "Content-Type: text/html; charset=utf-8\r\n";
-                        response << "Content-Length: " << html.size() << "\r\n";
-                        response << "Connection: close\r\n";
-                        response << "\r\n";
-                        response << html;
+                    std::vector<SOCKET> socketsToMove;
 
-                        std::string responseStr = response.str();
+                    for (SOCKET client : clientSockets) {
+                        if (FD_ISSET(client, &readFds)) {
+                            char buffer[2048];
+                            int bytesReceived = recv(client, buffer, sizeof(buffer) - 1, 0);
 
-                        // 发送响应
-                        int totalSent = 0;
-                        int responseSize = static_cast<int>(responseStr.size());
-                        while (totalSent < responseSize && !shouldStop.load()) {
-                            int sent = send(clientSocket, responseStr.c_str() + totalSent, responseSize - totalSent, 0);
-                            if (sent == SOCKET_ERROR) {
-                                break;
+                            if (bytesReceived > 0) {
+                                clientRecvBuffers[client] += std::string(buffer, bytesReceived);
+
+                                size_t headerEnd = clientRecvBuffers[client].find("\r\n\r\n");
+                                if (headerEnd != std::string::npos) {
+                                    const size_t lineEnd = clientRecvBuffers[client].find("\r\n");
+                                    if (lineEnd != std::string::npos) {
+                                        const std::string requestLine = clientRecvBuffers[client].substr(0, lineEnd);
+                                        std::istringstream iss(requestLine);
+                                        std::string method, path, protocol;
+                                        iss >> method >> path >> protocol;
+                                        logger->log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION},
+                                                    spdlog::level::info,
+                                                    "收到请求: Method[{}], Path[{}], Protocol[{}]", method, path, protocol);
+
+                                        if (method == "GET") {
+                                            if (path == "/" || path == "/index.html") {
+                                                std::ostringstream stream;
+                                                stream << "HTTP/1.1 200 OK\r\n";
+                                                stream << "Content-Type: text/html; charset=utf-8\r\n";
+                                                stream << "Content-Length: " << html.size() << "\r\n";
+                                                stream << "Connection: close\r\n";
+                                                stream << "\r\n";
+                                                stream << html;
+                                                clientSendBuffers[client] = stream.str();
+                                            } else {
+                                                std::ostringstream stream;
+                                                stream << "HTTP/1.1 404 Not Found\r\n";
+                                                stream << "Content-Length: 0\r\n";
+                                                stream << "Connection: close\r\n";
+                                                stream << "\r\n";
+                                                clientSendBuffers[client] = stream.str();
+                                            }
+                                        } else {
+                                            std::ostringstream stream;
+                                            stream << "HTTP/1.1 501 Not Implemented\r\n";
+                                            stream << "Content-Length: 0\r\n";
+                                            stream << "Connection: close\r\n";
+                                            stream << "\r\n";
+                                            clientSendBuffers[client] = stream.str();
+                                        }
+                                        sendCount[client] = 0;
+                                    }
+                                }
+                            } else if (bytesReceived == 0) {
+                                socketsToMove.push_back(client);
+                            } else {
+                                if (WSAGetLastError() != WSAEWOULDBLOCK) {
+                                    socketsToMove.push_back(client);
+                                }
                             }
-                            totalSent += sent;
                         }
-                        shutdown(clientSocket, SD_SEND);
-                        closesocket(clientSocket);
+
+                        if (FD_ISSET(client, &writeFds) && clientSendBuffers.find(client) != clientSendBuffers.end()) {
+                            const std::string &responseStr = clientSendBuffers[client];
+                            int totalCount = static_cast<int>(responseStr.size());
+                            int &totalSendCount = sendCount[client];
+                            if (totalSendCount < totalCount) {
+                                int count = send(client, responseStr.c_str() + totalSendCount,
+                                                 totalCount - totalSendCount, 0);
+                                if (count == SOCKET_ERROR) {
+                                    if (WSAGetLastError() != WSAEWOULDBLOCK) {
+                                        socketsToMove.push_back(client);
+                                    }
+                                } else {
+                                    totalSendCount += count;
+                                    if (totalSendCount >= totalCount) {
+                                        socketsToMove.push_back(client);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    for (SOCKET client : socketsToMove) {
+                        auto it = std::find(clientSockets.begin(), clientSockets.end(), client);
+                        if (it != clientSockets.end()) {
+                            clientSockets.erase(it);
+                        }
+                        shutdown(client, SD_SEND);
+                        closesocket(client);
+                        clientSendBuffers.erase(client);
+                        sendCount.erase(client);
                     }
                 }
             }
+
+            for (SOCKET client : clientSockets) {
+                shutdown(client, SD_SEND);
+                closesocket(client);
+            }
+
+            closesocket(serverSocket);
+            WSACleanup();
         });
         return portFuture.get();
     }

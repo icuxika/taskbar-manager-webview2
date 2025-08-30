@@ -70,7 +70,7 @@ namespace v1_taskbar_manager {
             return 1;
         }
 
-        this->httpServer = std::make_unique<v2_taskbar_manager::HttpServer>();
+        this->httpServer = std::make_unique<HttpServer>();
         int port = this->httpServer->Start();
         if (port == -1) {
             this->httpServer->Stop();
