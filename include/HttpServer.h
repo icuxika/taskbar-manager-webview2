@@ -33,6 +33,9 @@ namespace v2_taskbar_manager {
             char recvData[2048];
             std::string sendData;
             enum { OP_ACCEPT, OP_RECV, OP_SEND } op;
+
+            std::string requestData;
+            bool headerComplete = false;
         };
 
         SOCKET listenSocket = INVALID_SOCKET;

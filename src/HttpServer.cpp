@@ -185,7 +185,7 @@ namespace v2_taskbar_manager {
     int HttpServer::Start() {
         int iResult = 0;
 
-        WSADATA wsaData = {0};
+        WSADATA wsaData = {};
         iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
         if (iResult != 0) {
             return -1;
@@ -205,9 +205,9 @@ namespace v2_taskbar_manager {
             return -1;
         }
 
-        int selectedPort = v1_taskbar_manager::HttpServer::GetPreferredPort();
+        const int selectedPort = v1_taskbar_manager::HttpServer::GetPreferredPort();
 
-        sockaddr_in address;
+        sockaddr_in address{};
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         address.sin_port = htons(selectedPort);
@@ -227,9 +227,10 @@ namespace v2_taskbar_manager {
             return -1;
         }
 
-        int actualPort = ntohs(actualAddr.sin_port);
+        const int actualPort = ntohs(actualAddr.sin_port);
 
-        if (listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) {
+        iResult = listen(listenSocket, SOMAXCONN);
+        if (iResult == SOCKET_ERROR) {
             closesocket(listenSocket);
             WSACleanup();
             return -1;
@@ -240,8 +241,7 @@ namespace v2_taskbar_manager {
         }
 
         completionPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, listenSocket, 0);
-        if (!completionPort) {
-            CloseHandle(completionPort);
+        if (completionPort == nullptr) {
             closesocket(listenSocket);
             WSACleanup();
             return -1;
@@ -298,16 +298,19 @@ namespace v2_taskbar_manager {
     }
 
     void HttpServer::PostAccept() {
-        SOCKET socket = WSASocket(AF_INET, SOCK_STREAM, 0, nullptr, 0,WSA_FLAG_OVERLAPPED);
-        IOContext *context = new IOContext();
+        const SOCKET socket = WSASocket(AF_INET, SOCK_STREAM, 0, nullptr, 0,WSA_FLAG_OVERLAPPED);
+        if (socket == INVALID_SOCKET) {
+            return;
+        }
+        auto *context = new IOContext();
         context->socket = socket;
         context->op = IOContext::OP_ACCEPT;
         context->buffer.buf = context->recvData;
         context->buffer.len = sizeof(context->recvData);
 
         DWORD bytes = 0;
-        BOOL ok = lpFnAcceptEx(listenSocket, socket, context->recvData, 0, sizeof(sockaddr_in) + 16,
-                               sizeof(sockaddr_in) + 16, &bytes, &context->overlapped);
+        const BOOL ok = lpFnAcceptEx(listenSocket, socket, context->recvData, 0, sizeof(sockaddr_in) + 16,
+                                     sizeof(sockaddr_in) + 16, &bytes, &context->overlapped);
         if (!ok && WSAGetLastError() != ERROR_IO_PENDING) {
             closesocket(socket);
             delete context;
@@ -323,8 +326,8 @@ namespace v2_taskbar_manager {
             ULONG_PTR completionKey;
             LPOVERLAPPED overlapped;
 
-            BOOL ok = GetQueuedCompletionStatus(completionPort, &bytesTransferred, &completionKey, &overlapped,
-                                                INFINITE);
+            const BOOL ok = GetQueuedCompletionStatus(completionPort, &bytesTransferred, &completionKey, &overlapped,
+                                                      INFINITE);
 
             if (!isRunning) {
                 break;
@@ -335,7 +338,7 @@ namespace v2_taskbar_manager {
                     continue;
                 }
                 if (overlapped) {
-                    IOContext *context = CONTAINING_RECORD(overlapped, IOContext, overlapped);
+                    const auto context = CONTAINING_RECORD(overlapped, IOContext, overlapped);
                     if (context->socket != INVALID_SOCKET) {
                         closesocket(context->socket);
                         delete context;
@@ -352,7 +355,7 @@ namespace v2_taskbar_manager {
                 continue;
             }
 
-            IOContext *context = CONTAINING_RECORD(overlapped, IOContext, overlapped);
+            const auto context = CONTAINING_RECORD(overlapped, IOContext, overlapped);
             if (context->op == IOContext::OP_ACCEPT) {
                 setsockopt(context->socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
                            reinterpret_cast<char *>(&listenSocket), sizeof(listenSocket));
@@ -374,30 +377,69 @@ namespace v2_taskbar_manager {
                     continue;
                 }
 
-                std::string request(context->recvData, bytesTransferred);
-                logger->log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION}, spdlog::level::info,
-                            "收到请求: \n{}", request);
+                // 累积接收到的请求数据
+                context->requestData.append(context->recvData, bytesTransferred);
 
-                std::ostringstream stream;
-                stream << "HTTP/1.1 200 OK\r\n";
-                stream << "Content-Type: text/html; charset=utf-8\r\n";
-                stream << "Content-Length: " << html.size() << "\r\n";
-                stream << "Connection: close\r\n";
-                stream << "\r\n";
-                stream << html;
+                if (!context->headerComplete) {
+                    const size_t headerEnd = context->requestData.find("\r\n\r\n");
+                    if (headerEnd != std::string::npos) {
+                        context->headerComplete = true;
+                        // 解析请求行
+                        const size_t lineEnd = context->requestData.find("\r\n");
+                        if (lineEnd != std::string::npos) {
+                            const std::string requestLine = context->requestData.substr(0, lineEnd);
+                            std::istringstream iss(requestLine);
+                            std::string method, path, protocol;
+                            iss >> method >> path >> protocol;
+                            logger->log(spdlog::source_loc{__FILE__, __LINE__, SPDLOG_FUNCTION}, spdlog::level::info,
+                                        "收到请求: Method[{}], Path[{}], Protocol[{}]", method, path, protocol);
 
-                context->sendData = stream.str();
+                            if (method == "GET") {
+                                if (path == "/" || path == "/index.html") {
+                                    std::ostringstream stream;
+                                    stream << "HTTP/1.1 200 OK\r\n";
+                                    stream << "Content-Type: text/html; charset=utf-8\r\n";
+                                    stream << "Content-Length: " << html.size() << "\r\n";
+                                    stream << "Connection: close\r\n";
+                                    stream << "\r\n";
+                                    stream << html;
+                                    context->sendData = stream.str();
+                                } else {
+                                    std::ostringstream stream;
+                                    stream << "HTTP/1.1 404 Not Found\r\n";
+                                    stream << "Content-Length: 0\r\n";
+                                    stream << "Connection: close\r\n";
+                                    stream << "\r\n";
+                                    context->sendData = stream.str();
+                                }
+                            } else {
+                                std::ostringstream stream;
+                                stream << "HTTP/1.1 501 Not Implemented\r\n";
+                                stream << "Content-Length: 0\r\n";
+                                stream << "Connection: close\r\n";
+                                stream << "\r\n";
+                                context->sendData = stream.str();
+                            }
 
-                ZeroMemory(&context->overlapped, sizeof(context->overlapped));
-                context->op = IOContext::OP_SEND;
-                context->buffer.buf = context->sendData.data();
-                context->buffer.len = context->sendData.size();
-                WSASend(context->socket, &context->buffer, 1, nullptr, 0, &context->overlapped, nullptr);
+                            ZeroMemory(&context->overlapped, sizeof(context->overlapped));
+                            context->op = IOContext::OP_SEND;
+                            context->buffer.buf = context->sendData.data();
+                            context->buffer.len = context->sendData.size();
+                            WSASend(context->socket, &context->buffer, 1, nullptr, 0, &context->overlapped, nullptr);
+                        }
+                    } else {
+                        ZeroMemory(&context->overlapped, sizeof(context->overlapped));
+                        context->op = IOContext::OP_RECV;
+                        context->buffer.buf = context->recvData;
+                        context->buffer.len = sizeof(context->recvData);
+                        DWORD flags = 0;
+                        WSARecv(context->socket, &context->buffer, 1, nullptr, &flags, &context->overlapped, nullptr);
+                    }
+                }
             } else if (context->op == IOContext::OP_SEND) {
                 closesocket(context->socket);
                 delete context;
             }
         }
     }
-
 }
