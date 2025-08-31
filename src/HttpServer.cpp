@@ -572,8 +572,17 @@ namespace v2_taskbar_manager {
                     }
                 }
             } else if (context->op == IOContext::OP_SEND) {
-                closesocket(context->socket);
-                delete context;
+                context->sendCount += bytesTransferred;
+                if (context->sendCount < context->sendData.size()) {
+                    ZeroMemory(&context->overlapped, sizeof(context->overlapped));
+                    context->op = IOContext::OP_SEND;
+                    context->buffer.buf = context->sendData.data() + context->sendCount;
+                    context->buffer.len = context->sendData.size() - context->sendCount;
+                    WSASend(context->socket, &context->buffer, 1, nullptr, 0, &context->overlapped, nullptr);
+                } else {
+                    closesocket(context->socket);
+                    delete context;
+                }
             }
         }
     }

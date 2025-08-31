@@ -32,6 +32,7 @@ namespace v2_taskbar_manager {
             WSABUF buffer;
             char recvData[2048];
             std::string sendData;
+            size_t sendCount;
             enum { OP_ACCEPT, OP_RECV, OP_SEND } op;
 
             std::string requestData;
