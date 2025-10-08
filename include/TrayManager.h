@@ -13,10 +13,14 @@ namespace v1_taskbar_manager {
 
         void RemoveTrayIcon();
 
-        LRESULT HandleTrayMessage(WPARAM wParam, LPARAM lParam) const;
+        LRESULT HandleTrayMessage(WPARAM wParam, LPARAM lParam);
 
+        bool IsTrayMenuItemChecked(UINT id);
+
+        void UpdateTrayMenuItemInfo(UINT id);
     private:
         HWND hWnd;
         NOTIFYICONDATAW nid;
+        HMENU trayMenu;
     };
 }

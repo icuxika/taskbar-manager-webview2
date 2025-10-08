@@ -16,7 +16,7 @@ namespace v1_taskbar_manager {
      */
     std::wstring Utils::GetExeDirectory() {
         wchar_t buffer[MAX_PATH] = {0};
-        GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+        GetModuleFileName(nullptr, buffer, MAX_PATH);
         std::wstring path(buffer);
         if (const size_t pos = path.find_last_of(L"\\/"); pos != std::wstring::npos) {
             path = path.substr(0, pos);

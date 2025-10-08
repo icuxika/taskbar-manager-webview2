@@ -167,27 +167,30 @@ namespace v1_taskbar_manager {
                 PostQuitMessage(0);
                 break;
             case ID_TRAY_ENABLE_HOTKEY: {
-                HotKeyRegistrationResult result =
-                    globalHotKeyManager->RegisterGlobalHotKey('T', MOD_CONTROL | MOD_ALT, [this]() {
-                        ShowWindow(this->hWnd, SW_RESTORE);
-                        SetForegroundWindow(this->hWnd);
-                    });
-                if (result.Success()) {
-                    hotKeyId = result.id;
-                    MessageBox(hWnd, L"已成功注册全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                if (trayManager->IsTrayMenuItemChecked(ID_TRAY_ENABLE_HOTKEY)) {
+                    if (hotKeyId != 0) {
+                        if (globalHotKeyManager->UnregisterHotKey(hotKeyId)) {
+                            trayManager->UpdateTrayMenuItemInfo(ID_TRAY_ENABLE_HOTKEY);
+                            MessageBox(hWnd, L"已成功取消全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                        }
+                    }
                 } else {
-                    MessageBox(hWnd, Utils::StringToWString(result.errorMessage).c_str(), L"注册热键失败",
-                               MB_ICONERROR);
-                }
-                break;
-            }
-            case ID_TRAY_DISABLE_HOTKEY:
-                if (hotKeyId != 0) {
-                    if (globalHotKeyManager->UnregisterHotKey(hotKeyId)) {
-                        MessageBox(hWnd, L"已成功取消全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                    HotKeyRegistrationResult result =
+                        globalHotKeyManager->RegisterGlobalHotKey('T', MOD_CONTROL | MOD_ALT, [this]() {
+                            ShowWindow(this->hWnd, SW_RESTORE);
+                            SetForegroundWindow(this->hWnd);
+                        });
+                    if (result.Success()) {
+                        hotKeyId = result.id;
+                        trayManager->UpdateTrayMenuItemInfo(ID_TRAY_ENABLE_HOTKEY);
+                        MessageBox(hWnd, L"已成功注册全局快捷键 Ctrl+Alt+T", L"全局快捷键", MB_ICONINFORMATION);
+                    } else {
+                        MessageBox(hWnd, Utils::StringToWString(result.errorMessage).c_str(), L"注册热键失败",
+                                   MB_ICONERROR);
                     }
                 }
                 break;
+            }
             case ID_TRAY_LOCAL_APP_DATA: {
                 const std::wstring localAppData = Utils::GetLocalAppDataFolder();
                 ShellExecute(nullptr, L"open", localAppData.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
